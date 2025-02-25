@@ -1,0 +1,76 @@
+name: Automatic build release on tag
+
+on:
+  push:
+    tags:        
+      - '*'
+
+jobs:
+  build_and_release:
+    runs-on: ${{ matrix.os }}
+    permissions: write-all
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+        arch: [x86_64, aarch64]
+        include:
+          - os: windows-latest
+            ext_zip: ".zip"
+            ext_tar: ".tar.gz"
+            platform: windows
+          - os: ubuntu-latest
+            ext_zip: ".zip"
+            ext_tar: ".tar.gz"
+            platform: linux
+          - os: macos-latest
+            ext_zip: ".zip"
+            ext_tar: ".tar.gz"
+            platform: macos
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Set up Zig compiler
+        uses: mlugg/setup-zig@v1.2.1
+        with:
+          version: '0.13.0'
+
+      - name: Build project
+        run: |
+          zig build -Dtarget=${{ matrix.arch }}-${{ matrix.platform }}
+          mkdir -p artifacts
+          if [ "$RUNNER_OS" == "Windows" ]; then
+            pwsh -c 'Compress-Archive -Path zig-out/bin/* -DestinationPath artifacts/zig-wol-${{ matrix.arch }}-${{ matrix.platform }}.zip'
+          else
+            zip -r artifacts/zig-wol-${{ matrix.arch }}-${{ matrix.platform }}.zip zig-out/bin/*
+          fi
+          tar -czvf artifacts/zig-wol-${{ matrix.arch }}-${{ matrix.platform }}.tar.gz -C zig-out/bin .
+        shell: bash      
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: zig-wol-${{ matrix.arch }}-${{ matrix.platform }}
+          path: artifacts/*
+
+  release:
+    needs: build_and_release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create GitHub Release
+        id: create_release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+          files: artifacts/*/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.PAT_ONLY_CONTENTS }}
