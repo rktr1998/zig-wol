@@ -3,24 +3,44 @@ const network = @import("network");
 const clap = @import("clap");
 
 pub fn main() !void {
-    // Get allocator
+    // Handle command line arguments parsing
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    const allocator = gpa.allocator();
     defer _ = gpa.deinit();
 
-    // Parse args into string array
-    const args = try std.process.argsAlloc(allocator);
-    defer std.process.argsFree(allocator, args);
+    const params = comptime clap.parseParamsComptime(
+        \\--help             Display this help and exit.
+        \\--port <u16>       Port to send the magic packet to. Default is 9.
+        \\<str>...
+        \\
+    );
 
-    // Ensure correct usage
-    if (args.len != 2) {
-        return std.debug.print("Usage: {s} <MAC e.g. 00-11-22-33-44-55>\n", .{args[0]});
+    var diag = clap.Diagnostic{};
+    var res = clap.parse(clap.Help, &params, clap.parsers.default, .{
+        .diagnostic = &diag,
+        .allocator = gpa.allocator(),
+    }) catch |err| {
+        // Report useful error and exit.
+        diag.report(std.io.getStdErr().writer(), err) catch {};
+        return err;
+    };
+    defer res.deinit();
+
+    if (res.args.help != 0)
+        return clap.help(std.io.getStdErr().writer(), clap.Help, &params, .{});
+
+    var port: u16 = 9;
+    if (res.args.port) |p| {
+        port = @as(u16, p); // this cast is redundant (clap handles it see above)
     }
 
-    // Get the MAC address
-    const mac = args[1];
+    if (res.positionals.len != 1) {
+        std.debug.print("Usage: wake-on-lan <MAC>\n", .{});
+        return error.InvalidUsage;
+    }
 
-    // Parse MAC address
+    const mac = res.positionals[0];
+
+    // Parse MAC address to bytes
     var mac_bytes: [6]u8 = undefined;
     var mac_split_iterator = std.mem.split(u8, mac, "-");
     var idx: usize = 0;
@@ -57,7 +77,7 @@ pub fn main() !void {
     const destAddr = network.EndPoint{
         .address = network.Address{ .ipv4 = network.Address.IPv4.broadcast },
         //.address = network.Address{ .ipv4 = network.Address.IPv4.broadcast },
-        .port = 9,
+        .port = port,
     };
 
     // Send the magic packet
