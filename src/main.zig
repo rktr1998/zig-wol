@@ -8,9 +8,9 @@ pub fn main() !void {
     defer _ = gpa.deinit();
 
     const params = comptime clap.parseParamsComptime(
+        \\<str>              MAC address of the device to wake up.
         \\--help             Display this help and exit.
-        \\--port <u16>       Port to send the magic packet to. Default is 9.
-        \\<str>...
+        \\--port <u16>       Port to send the magic packet to, default 9. This is generally irrelevant, see https://en.wikipedia.org/wiki/Wake-on-LAN#Magic_packet).
         \\
     );
 
@@ -28,19 +28,15 @@ pub fn main() !void {
     if (res.args.help != 0)
         return clap.help(std.io.getStdErr().writer(), clap.Help, &params, .{});
 
-    var port: u16 = 9;
-    if (res.args.port) |p| {
-        port = @as(u16, p); // this cast is redundant (clap handles it see above)
-    }
-
     if (res.positionals.len != 1) {
-        std.debug.print("Usage: wake-on-lan <MAC>\n", .{});
-        return error.InvalidUsage;
+        std.debug.print("Invalid number of arguments.\n", .{});
+        return clap.help(std.io.getStdErr().writer(), clap.Help, &params, .{});
     }
 
-    const mac = res.positionals[0];
+    try broadcast_magic_packet(res.positionals[0], res.args.port);
+}
 
-    // Parse MAC address to bytes
+fn parse_mac_to_bytes(mac: []const u8) !([6]u8) {
     var mac_bytes: [6]u8 = undefined;
     var mac_split_iterator = std.mem.split(u8, mac, "-");
     var idx: usize = 0;
@@ -50,6 +46,15 @@ pub fn main() !void {
         idx += 1;
     }
     if (idx != 6) return error.InvalidMacAddress;
+    return mac_bytes;
+}
+
+fn broadcast_magic_packet(mac: []const u8, port: ?u16) !void {
+    // Default port for wake-on-lan if parameter port is null
+    const default_udp_port: u16 = 9;
+
+    // Parse MAC address to bytes
+    var mac_bytes = try parse_mac_to_bytes(mac);
 
     // Create magic packet: 6 bytes of 0xFF followed by MAC address repeated 16 times
     var magic_packet: [102]u8 = undefined;
@@ -77,7 +82,7 @@ pub fn main() !void {
     const destAddr = network.EndPoint{
         .address = network.Address{ .ipv4 = network.Address.IPv4.broadcast },
         //.address = network.Address{ .ipv4 = network.Address.IPv4.broadcast },
-        .port = port,
+        .port = port orelse default_udp_port,
     };
 
     // Send the magic packet
