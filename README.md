@@ -9,7 +9,7 @@ A simple wake-on-lan utility written in Zig. Wakes up a computer in a LAN given 
 
 ## Installation
 
-Pre-compiled binaries are distributed with [releases](https://github.com/rktr1998/zig-wol/releases): donwload the binary for your architecture and operating system and you are good to go!
+Pre-compiled binaries are distributed with [releases](https://github.com/rktr1998/zig-wol/releases): download the binary for your architecture and operating system and you are good to go!
 
 ### Install latest on Windows using PowerShell
 
@@ -20,7 +20,7 @@ Invoke-RestMethod "https://raw.githubusercontent.com/rktr1998/zig-wol/refs/heads
 ### Install latest on Linux
 
 ```sh
-curl -sSL https://raw.githubusercontent.com/rktr1998/zig-wol/refs/heads/main/install/install-latest-on-linux.sh -o /tmp/zig-wol.sh && chmod +x /tmp/zig-wol.sh && /tmp/zig-wol.sh && rm -f /tmp/zig-wol.sh
+bash <(curl -sSL https://raw.githubusercontent.com/rktr1998/zig-wol/refs/heads/main/install/install-latest-on-linux.sh)
 ```
 
 This command donwloads the latest release for your processor architecture and **installs** the program under `C:\Users\%username%\.zig-wol`.
