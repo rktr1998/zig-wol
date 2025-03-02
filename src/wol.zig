@@ -1,7 +1,10 @@
-const std = @import("std");
+//! This module implements Wake-on-LAN (WoL) basic functionality.
+//! Author: Riccardo Torreggiani
 
+const std = @import("std");
 const network = @import("network");
 
+/// Parse a MAC address string (with separators '-' or ':') into an array of 6 bytes.
 fn parse_mac(mac: []const u8) ![6]u8 {
     if (mac.len != 17) return error.InvalidMacAddress;
 
@@ -48,7 +51,7 @@ test "parse_mac invalid cases" {
     try std.testing.expectError(error.InvalidMacAddress, parse_mac("")); // Empty string
 }
 
-fn broadcast_magic_packet(mac: []const u8, port: ?u16) !void {
+pub fn broadcast_magic_packet(mac: []const u8, port: ?u16) !void {
     // Default port for wake-on-lan if parameter port is null
     const default_udp_port: u16 = 9;
 

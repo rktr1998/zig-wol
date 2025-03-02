@@ -1,8 +1,8 @@
 const std = @import("std");
-const network = @import("network");
 const clap = @import("clap");
 const wol = @import("wol.zig");
 
+/// Entry point of zig-wol.exe
 pub fn main() !void {
     // Handle command line arguments parsing
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
