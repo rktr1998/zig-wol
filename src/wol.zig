@@ -17,7 +17,7 @@ fn parse_mac(mac: []const u8) ![6]u8 {
         if (mac[i] != sep) return error.InvalidMacAddress;
     }
 
-    var mac_split_iterator = std.mem.tokenize(u8, mac, &.{sep});
+    var mac_split_iterator = std.mem.tokenizeSequence(u8, mac, &.{sep});
     var mac_octets: [6]u8 = undefined;
     var idx: usize = 0;
 
@@ -94,4 +94,8 @@ pub fn broadcast_magic_packet(mac: []const u8, port: ?u16) !void {
     };
 
     std.debug.print("Sent wake-on-lan magic packet to target MAC {s}.\n", .{mac});
+}
+
+pub fn config_placeholder() !void {
+    std.debug.print("config subcommand not implemented.\n", .{});
 }
