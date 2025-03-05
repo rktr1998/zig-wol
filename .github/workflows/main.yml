@@ -22,10 +22,6 @@ jobs:
             ext_zip: ".zip"
             ext_tar: ".tar.gz"
             platform: linux
-          - os: macos-latest
-            ext_zip: ".zip"
-            ext_tar: ".tar.gz"
-            platform: macos
 
     steps:
       - name: Check out code
