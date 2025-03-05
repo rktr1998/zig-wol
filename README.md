@@ -7,6 +7,18 @@ A simple wake-on-lan utility written in Zig. Wakes up a computer in a LAN given 
 - Send WOL magic packets to wake up devices on the LAN.
 - Cross-platform support for Windows and Linux.
 
+## Usage
+
+Wake a device on your LAN by broadcasting the magic packet.
+
+```pwsh
+zig-wol.exe wake <MAC_ADDRESS>
+```
+
+Replace `<MAC_ADDRESS>` with the target MAC address (e.g. `9A-63-A1-FF-8B-4C`).
+
+Run `zig-wol help` to display all subcommands and `zig-wol <subcommand> --help` to display specific options.
+
 ## Installation
 
 Pre-compiled binaries are distributed with [releases](https://github.com/rktr1998/zig-wol/releases): download the binary for your architecture and operating system and you are good to go!
@@ -25,18 +37,6 @@ bash <(curl -sSL https://raw.githubusercontent.com/rktr1998/zig-wol/refs/heads/m
 
 This command donwloads the latest release for your processor architecture and **installs** the program under `C:\Users\%username%\.zig-wol`.
 To **uninstall** zig-wol you can simply delete this folder.
-
-## Usage
-
-Wake a device on your LAN by broadcasting the magic packet.
-
-```sh
-zig-wol.exe <MAC_ADDRESS>
-```
-
-Replace `<MAC_ADDRESS>` with the target device's MAC address (e.g. `9A-63-A1-FF-8B-4C`).
-
-Run `zig-wol --help` to display more options.
 
 ## Build
 

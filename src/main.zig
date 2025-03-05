@@ -2,11 +2,14 @@ const std = @import("std");
 const clap = @import("clap");
 const wol = @import("wol.zig");
 
+const version = "0.1.1"; // should be read from build.zig.zon at comptime
+
 // Implement the subcommands parser
 const SubCommands = enum {
-    help,
     wake,
     config,
+    version,
+    help,
 };
 const main_parsers = .{
     .command = clap.parsers.enumeration(SubCommands),
@@ -20,6 +23,7 @@ const MainArgs = clap.ResultEx(clap.Help, &main_params, main_parsers);
 
 /// Entry point of zig-wol.exe
 pub fn main() !void {
+    // Initialize allocator for the command line arguments parsing
     var gpa_state = std.heap.GeneralPurposeAllocator(.{}){};
     const gpa = gpa_state.allocator();
     defer _ = gpa_state.deinit();
@@ -46,23 +50,13 @@ pub fn main() !void {
     }
 
     // If a subcommand is provided, parse it and execute the corresponding subcommand handler
-    const command = res.positionals[0] orelse return subCommandHelp();
-    switch (command) {
-        .help => try subCommandHelp(),
+    const subcommand = res.positionals[0] orelse return subCommandHelp();
+    switch (subcommand) {
         .wake => try subCommandWake(gpa, &iter, res),
         .config => try subCommandConfig(gpa, &iter, res),
+        .version => try subCommandVersion(),
+        .help => try subCommandHelp(),
     }
-}
-
-fn subCommandHelp() !void {
-    std.debug.print("Usage: zig-wol <command> [options]\n", .{});
-    std.debug.print("Commands:\n", .{});
-    std.debug.print("  help    Display help for the program or a specific command.\n", .{});
-    std.debug.print("  wake    Wake up a device using Wake-on-LAN.\n", .{});
-    std.debug.print("  config  Configure the program.\n", .{});
-    std.debug.print("\n", .{});
-    std.debug.print("Run 'zig-wol <command> --help' for more information on a command.\n", .{});
-    return;
 }
 
 fn subCommandWake(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_args: MainArgs) !void {
@@ -72,7 +66,7 @@ fn subCommandWake(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_a
     const params = comptime clap.parseParamsComptime(
         \\<str>              MAC address of the device to wake up.
         \\--help             Display this help and exit.
-        \\--port <u16>       UDP port, default 9. This is generally irrelevant since wake-on-lan works with OSI layer 2 (Data Link), see https://en.wikipedia.org/wiki/Wake-on-LAN#Magic_packet).
+        \\--port <u16>       UDP port, default 9. This is generally irrelevant since wake-on-lan works with OSI layer 2 (Data Link).
         \\
     );
 
@@ -88,7 +82,7 @@ fn subCommandWake(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_a
     defer res.deinit();
 
     if (res.args.help != 0)
-        std.debug.print("--help\n", .{});
+        return std.debug.print("Provide a MAC address. Usage: zig-wol wake <MAC> [options]\n", .{});
 
     const mac = res.positionals[0] orelse return std.debug.print("Provide a MAC address. Usage: zig-wol wake <MAC> [options]\n", .{});
 
@@ -115,4 +109,24 @@ fn subCommandConfig(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main
     defer res.deinit();
 
     try wol.config_placeholder();
+}
+
+fn subCommandVersion() !void {
+    const stdout = std.io.getStdOut().writer();
+    try stdout.print(version, .{});
+}
+
+fn subCommandHelp() !void {
+    const message =
+        \\Usage: zig-wol <command> [options]
+        \\Commands:
+        \\  wake    Wake up a device by its MAC address.
+        \\  config  Configure the program.
+        \\  version Display the version of the program.
+        \\  help    Display help for the program or a specific command.
+        \\
+        \\Run 'zig-wol <command> --help' for more information on a specific command.
+    ;
+    const stdout = std.io.getStdOut().writer();
+    try stdout.print(message, .{});
 }
