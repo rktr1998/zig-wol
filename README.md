@@ -29,14 +29,15 @@ Pre-compiled binaries are distributed with [releases](https://github.com/rktr199
 Invoke-RestMethod "https://raw.githubusercontent.com/rktr1998/zig-wol/refs/heads/main/install/install-latest-on-windows.ps1" | Invoke-Expression
 ```
 
+This command donwloads the latest release for your processor architecture and **installs** the program at `C:\Users\%username%\.zig-wol`. To **uninstall** zig-wol you can simply delete this folder.
+
 ### Install latest on Linux
 
 ```sh
 bash <(curl -sSL https://raw.githubusercontent.com/rktr1998/zig-wol/refs/heads/main/install/install-latest-on-linux.sh)
 ```
 
-This command donwloads the latest release for your processor architecture and **installs** the program under `C:\Users\%username%\.zig-wol`.
-To **uninstall** zig-wol you can simply delete this folder.
+This command donwloads the latest release for your processor architecture and **installs** the program at `/home/$USER/.zig-wol`. To **uninstall** zig-wol you can simply delete this folder.
 
 ## Build
 
