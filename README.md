@@ -29,7 +29,7 @@ Pre-compiled binaries are distributed with [releases](https://github.com/rktr199
 Invoke-RestMethod "https://raw.githubusercontent.com/rktr1998/zig-wol/refs/heads/main/install/install-latest-on-windows.ps1" | Invoke-Expression
 ```
 
-This command donwloads the latest release for your processor architecture and **installs** the program at `C:\Users\%username%\.zig-wol`. To **uninstall** zig-wol you can simply delete this folder.
+This command downloads the latest release for your processor architecture and **installs** the program at `C:\Users\%username%\.zig-wol`. To **uninstall** zig-wol you can simply delete this folder.
 
 ### Install latest on Linux
 
@@ -37,13 +37,13 @@ This command donwloads the latest release for your processor architecture and **
 bash <(curl -sSL https://raw.githubusercontent.com/rktr1998/zig-wol/refs/heads/main/install/install-latest-on-linux.sh)
 ```
 
-This command donwloads the latest release for your processor architecture and **installs** the program at `/home/$USER/.zig-wol`. To **uninstall** zig-wol you can simply delete this folder.
+This command downloads the latest release for your processor architecture and **installs** the program at `/home/$USER/.zig-wol`. To **uninstall** zig-wol you can simply delete this folder.
 
 ## Build
 
 ### Prerequisites
 
-- [Zig (v0.13.0)](https://ziglang.org/download/) installed on your system.
+- [Zig (v0.14.0)](https://ziglang.org/download/) installed on your system.
 
 ### 1. Clone the Repository
 
