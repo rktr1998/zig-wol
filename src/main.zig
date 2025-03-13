@@ -7,6 +7,8 @@ const version = "0.1.1"; // should be read from build.zig.zon at comptime
 // Implement the subcommands parser
 const SubCommands = enum {
     wake,
+    alias,
+    list,
     config,
     version,
     help,
@@ -53,6 +55,8 @@ pub fn main() !void {
     const subcommand = res.positionals[0] orelse return subCommandHelp();
     switch (subcommand) {
         .wake => try subCommandWake(gpa, &iter, res),
+        .alias => try subCommandAlias(gpa, &iter, res),
+        .list => try subCommandList(gpa, &iter, res),
         .config => try subCommandConfig(gpa, &iter, res),
         .version => try subCommandVersion(),
         .help => try subCommandHelp(),
@@ -89,6 +93,50 @@ fn subCommandWake(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_a
     try wol.broadcast_magic_packet(mac, res.args.port);
 }
 
+fn subCommandAlias(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_args: MainArgs) !void {
+    _ = main_args; // parent args not used
+
+    // The parameters for the subcommand.
+    const params = comptime clap.parseParamsComptime(
+        \\-h, --help  Display help for subCommandConfig.
+    );
+
+    // Here we pass the partially parsed argument iterator.
+    var diag = clap.Diagnostic{};
+    var res = clap.parseEx(clap.Help, &params, clap.parsers.default, iter, .{
+        .diagnostic = &diag,
+        .allocator = gpa,
+    }) catch |err| {
+        diag.report(std.io.getStdErr().writer(), err) catch {};
+        return err;
+    };
+    defer res.deinit();
+
+    try wol.alias_subcommand_placeholder();
+}
+
+fn subCommandList(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_args: MainArgs) !void {
+    _ = main_args; // parent args not used
+
+    // The parameters for the subcommand.
+    const params = comptime clap.parseParamsComptime(
+        \\-h, --help  Display help for subCommandConfig.
+    );
+
+    // Here we pass the partially parsed argument iterator.
+    var diag = clap.Diagnostic{};
+    var res = clap.parseEx(clap.Help, &params, clap.parsers.default, iter, .{
+        .diagnostic = &diag,
+        .allocator = gpa,
+    }) catch |err| {
+        diag.report(std.io.getStdErr().writer(), err) catch {};
+        return err;
+    };
+    defer res.deinit();
+
+    try wol.list_subcommand_placeholder();
+}
+
 fn subCommandConfig(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_args: MainArgs) !void {
     _ = main_args; // parent args not used
 
@@ -108,7 +156,7 @@ fn subCommandConfig(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main
     };
     defer res.deinit();
 
-    try wol.config_placeholder();
+    try wol.config_subcommand_placeholder();
 }
 
 fn subCommandVersion() !void {
@@ -121,7 +169,9 @@ fn subCommandHelp() !void {
         \\Usage: zig-wol <command> [options]
         \\Commands:
         \\  wake    Wake up a device by its MAC address.
-        \\  config  Configure the program.
+        \\  alias   Manage aliases for MAC addresses. [not implemented]
+        \\  list    List all aliases. [not implemented]
+        \\  config  Configure the program. [not implemented]
         \\  version Display the version of the program.
         \\  help    Display help for the program or a specific command.
         \\

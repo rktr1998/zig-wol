@@ -96,6 +96,14 @@ pub fn broadcast_magic_packet(mac: []const u8, port: ?u16) !void {
     std.debug.print("Sent wake-on-lan magic packet to target MAC {s}.\n", .{mac});
 }
 
-pub fn config_placeholder() !void {
+pub fn config_subcommand_placeholder() !void {
     std.debug.print("config subcommand not implemented.\n", .{});
+}
+
+pub fn alias_subcommand_placeholder() !void {
+    std.debug.print("alias subcommand not implemented.\n", .{});
+}
+
+pub fn list_subcommand_placeholder() !void {
+    std.debug.print("list subcommand not implemented.\n", .{});
 }
