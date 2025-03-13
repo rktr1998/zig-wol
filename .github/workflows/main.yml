@@ -34,7 +34,7 @@ jobs:
 
       - name: Build project
         run: |
-          zig build -Dtarget=${{ matrix.arch }}-${{ matrix.platform }}
+          zig build -Dtarget=${{ matrix.arch }}-${{ matrix.platform }} --release=small
           mkdir -p artifacts
           if [ "$RUNNER_OS" == "Windows" ]; then
             pwsh -c 'Compress-Archive -Path zig-out/bin/* -DestinationPath artifacts/zig-wol-${{ matrix.arch }}-${{ matrix.platform }}.zip'
