@@ -1,3 +1,5 @@
+![GitHub License](https://img.shields.io/github/license/rktr1998/zig-wol)
+
 # Zig wake-on-lan utility
 
 A simple wake-on-lan utility written in Zig. Wakes up a computer in a LAN given its MAC address.
