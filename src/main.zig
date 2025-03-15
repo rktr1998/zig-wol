@@ -161,7 +161,7 @@ fn subCommandConfig(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main
 
 fn subCommandVersion() !void {
     const stdout = std.io.getStdOut().writer();
-    try stdout.print(version, .{});
+    try stdout.print("{s}\n", .{version});
 }
 
 fn subCommandHelp() !void {
@@ -178,5 +178,5 @@ fn subCommandHelp() !void {
         \\Run 'zig-wol <command> --help' for more information on a specific command.
     ;
     const stdout = std.io.getStdOut().writer();
-    try stdout.print(message, .{});
+    try stdout.print("{s}\n", .{message});
 }
