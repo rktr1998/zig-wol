@@ -1,8 +1,8 @@
 ![GitHub License](https://img.shields.io/github/license/rktr1998/zig-wol)
 
-# Zig wake-on-lan utility
+# Zig-wol
 
-A simple wake-on-lan utility written in Zig. Wakes up a computer in a LAN given its MAC address.
+Written in the [Zig](https://github.com/ziglang/zig) programming language, [zig-wol](https://github.com/rktr1998/zig-wol) is a CLI utility for sending wake-on-lan magic packets to wake up a computer in a LAN given its MAC address.
 
 ## Features
 
@@ -13,8 +13,8 @@ A simple wake-on-lan utility written in Zig. Wakes up a computer in a LAN given 
 
 Wake a device on your LAN by broadcasting the magic packet.
 
-```pwsh
-zig-wol.exe wake <MAC_ADDRESS>
+```sh
+zig-wol wake <MAC_ADDRESS>
 ```
 
 Replace `<MAC_ADDRESS>` with the target MAC address (e.g. `9A-63-A1-FF-8B-4C`).
@@ -23,7 +23,7 @@ Run `zig-wol help` to display all subcommands and `zig-wol <subcommand> --help` 
 
 ## Installation
 
-Pre-compiled binaries are distributed with [releases](https://github.com/rktr1998/zig-wol/releases): download the binary for your architecture and operating system and you are good to go!
+Pre-compiled binaries of [zig-wol](https://github.com/rktr1998/zig-wol) are distributed with [releases](https://github.com/rktr1998/zig-wol/releases): download the binary for your architecture and operating system and you are good to go!
 
 ### Install latest on Windows using PowerShell
 
@@ -31,7 +31,7 @@ Pre-compiled binaries are distributed with [releases](https://github.com/rktr199
 Invoke-RestMethod "https://raw.githubusercontent.com/rktr1998/zig-wol/refs/heads/main/install/install-latest-on-windows.ps1" | Invoke-Expression
 ```
 
-This command downloads the latest release for your processor architecture and **installs** the program at `C:\Users\%username%\.zig-wol`. To **uninstall** zig-wol you can simply delete this folder.
+This command downloads the latest release for your processor architecture and **installs** the program at `C:\Users\%username%\.zig-wol`. To **uninstall** zig-wol, simply delete this folder.
 
 ### Install latest on Linux
 
@@ -39,7 +39,7 @@ This command downloads the latest release for your processor architecture and **
 bash <(curl -sSL https://raw.githubusercontent.com/rktr1998/zig-wol/refs/heads/main/install/install-latest-on-linux.sh)
 ```
 
-This command downloads the latest release for your processor architecture and **installs** the program at `/home/$USER/.zig-wol`. To **uninstall** zig-wol you can simply delete this folder.
+This command downloads the latest release for your processor architecture and **installs** the program at `/home/$USER/.zig-wol`. To **uninstall** zig-wol, simply delete this folder.
 
 ## Build
 
