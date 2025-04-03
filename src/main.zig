@@ -1,15 +1,15 @@
 const std = @import("std");
 const clap = @import("clap");
 const wol = @import("wol.zig");
+const config = @import("config.zig");
 
-const version = "0.1.2"; // should be read from build.zig.zon at comptime
+const version = "0.1.3"; // should be read from build.zig.zon at comptime
 
 // Implement the subcommands parser
 const SubCommands = enum {
     wake,
     alias,
     list,
-    config,
     version,
     help,
 };
@@ -57,7 +57,6 @@ pub fn main() !void {
         .wake => try subCommandWake(gpa, &iter, res),
         .alias => try subCommandAlias(gpa, &iter, res),
         .list => try subCommandList(gpa, &iter, res),
-        .config => try subCommandConfig(gpa, &iter, res),
         .version => try subCommandVersion(),
         .help => try subCommandHelp(),
     }
@@ -71,7 +70,7 @@ fn subCommandWake(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_a
         \\<str>              MAC address of the device to wake up.
         \\--help             Display this help and exit.
         \\--port <u16>       UDP port, default 9. This is generally irrelevant since wake-on-lan works with OSI layer 2 (Data Link).
-        \\
+        \\--addr <str>       IPv4 address, default is broadcast 255.255.255.255.
     );
 
     // Here we pass the partially parsed argument iterator.
@@ -90,7 +89,7 @@ fn subCommandWake(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_a
 
     const mac = res.positionals[0] orelse return std.debug.print("Provide a MAC address. Usage: zig-wol wake <MAC> [options]\n", .{});
 
-    try wol.broadcast_magic_packet(mac, res.args.port);
+    try wol.broadcast_magic_packet(mac, res.args.port, res.args.addr);
 }
 
 fn subCommandAlias(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_args: MainArgs) !void {
@@ -98,7 +97,7 @@ fn subCommandAlias(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_
 
     // The parameters for the subcommand.
     const params = comptime clap.parseParamsComptime(
-        \\-h, --help  Display help for subCommandConfig.
+        \\-h, --help
     );
 
     // Here we pass the partially parsed argument iterator.
@@ -112,7 +111,7 @@ fn subCommandAlias(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_
     };
     defer res.deinit();
 
-    try wol.alias_subcommand_placeholder();
+    std.debug.print("alias subcommand not implemented.\n", .{});
 }
 
 fn subCommandList(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_args: MainArgs) !void {
@@ -120,7 +119,7 @@ fn subCommandList(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_a
 
     // The parameters for the subcommand.
     const params = comptime clap.parseParamsComptime(
-        \\-h, --help  Display help for subCommandConfig.
+        \\-h, --help
     );
 
     // Here we pass the partially parsed argument iterator.
@@ -129,34 +128,12 @@ fn subCommandList(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_a
         .diagnostic = &diag,
         .allocator = gpa,
     }) catch |err| {
-        diag.report(std.io.getStdErr().writer(), err) catch {};
+        try diag.report(std.io.getStdErr().writer(), err);
         return err;
     };
     defer res.deinit();
 
-    try wol.list_subcommand_placeholder();
-}
-
-fn subCommandConfig(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_args: MainArgs) !void {
-    _ = main_args; // parent args not used
-
-    // The parameters for the subcommand.
-    const params = comptime clap.parseParamsComptime(
-        \\-h, --help  Display help for subCommandConfig.
-    );
-
-    // Here we pass the partially parsed argument iterator.
-    var diag = clap.Diagnostic{};
-    var res = clap.parseEx(clap.Help, &params, clap.parsers.default, iter, .{
-        .diagnostic = &diag,
-        .allocator = gpa,
-    }) catch |err| {
-        diag.report(std.io.getStdErr().writer(), err) catch {};
-        return err;
-    };
-    defer res.deinit();
-
-    try wol.config_subcommand_placeholder();
+    std.debug.print("list subcommand not implemented.\n", .{});
 }
 
 fn subCommandVersion() !void {
@@ -171,7 +148,6 @@ fn subCommandHelp() !void {
         \\  wake    Wake up a device by its MAC address.
         \\  alias   Manage aliases for MAC addresses. [not implemented]
         \\  list    List all aliases. [not implemented]
-        \\  config  Configure the program. [not implemented]
         \\  version Display the version of the program.
         \\  help    Display help for the program or a specific command.
         \\

@@ -51,14 +51,17 @@ test "parse_mac invalid cases" {
     try std.testing.expectError(error.InvalidMacAddress, parse_mac("")); // Empty string
 }
 
-pub fn broadcast_magic_packet(mac: []const u8, port: ?u16) !void {
-    // Default port for wake-on-lan if parameter port is null
-    const default_udp_port: u16 = 9;
+/// Broadcasts a magic packet to wake up a device with the specified MAC address. Only supports IPv4.
+pub fn broadcast_magic_packet(mac: []const u8, port: ?u16, broadcast_address: ?[]const u8) !void {
+    // Default address and port if not provided
+    const actual_port = port orelse 9;
+    const actual_addr = network.Address.IPv4.parse(broadcast_address orelse "255.255.255.255") catch |err| {
+        std.debug.print("Invalid broadcast address: {}\n", .{err});
+        return err;
+    };
 
-    // Parse MAC address to bytes
-    var mac_bytes = try parse_mac(mac);
-
-    // Create magic packet: 6 bytes of 0xFF followed by MAC address repeated 16 times
+    // Parse MAC address to bytes and create magic packet: 6 bytes of 0xFF followed by MAC address repeated 16 times
+    const mac_bytes = try parse_mac(mac);
     var magic_packet: [102]u8 = undefined;
     @memset(magic_packet[0..6], 0xFF);
     for (0..16) |i| {
@@ -81,29 +84,16 @@ pub fn broadcast_magic_packet(mac: []const u8, port: ?u16) !void {
     });
 
     // Destination broadcast address 255.255.255.255:9
-    const destAddr = network.EndPoint{
-        .address = network.Address{ .ipv4 = network.Address.IPv4.broadcast },
-        //.address = network.Address{ .ipv4 = network.Address.IPv4.broadcast },
-        .port = port orelse default_udp_port,
+    const destEndPoint = network.EndPoint{
+        .address = network.Address{ .ipv4 = actual_addr },
+        .port = actual_port,
     };
 
     // Send the magic packet
-    _ = sock.sendTo(destAddr, &magic_packet) catch |err| {
+    _ = sock.sendTo(destEndPoint, &magic_packet) catch |err| {
         std.debug.print("Failed to send wake-on-lan magic packet: {}\n", .{err});
-        return err; // Exit the program with an error
+        return err;
     };
 
-    std.debug.print("Sent wake-on-lan magic packet to target MAC {s}.\n", .{mac});
-}
-
-pub fn config_subcommand_placeholder() !void {
-    std.debug.print("config subcommand not implemented.\n", .{});
-}
-
-pub fn alias_subcommand_placeholder() !void {
-    std.debug.print("alias subcommand not implemented.\n", .{});
-}
-
-pub fn list_subcommand_placeholder() !void {
-    std.debug.print("list subcommand not implemented.\n", .{});
+    std.debug.print("Sent wake-on-lan magic packet to target MAC {s} via {s}:{}/udp.\n", .{ mac, actual_addr, actual_port });
 }
