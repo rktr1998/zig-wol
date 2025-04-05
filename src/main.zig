@@ -3,7 +3,7 @@ const clap = @import("clap");
 const wol = @import("wol.zig");
 const config = @import("config.zig");
 
-const version = "0.1.3"; // should be read from build.zig.zon at comptime
+const version = "0.2.0"; // should be read from build.zig.zon at comptime
 
 // Implement the subcommands parser
 const SubCommands = enum {
