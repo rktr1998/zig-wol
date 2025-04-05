@@ -85,9 +85,26 @@ fn subCommandWake(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_a
     defer res.deinit();
 
     if (res.args.help != 0)
-        return std.debug.print("Provide a MAC address. Usage: zig-wol wake <MAC> [options]\n", .{});
+        return std.debug.print("Provide a MAC address or an alias name. Usage: zig-wol wake <MAC> [options]\n", .{});
 
-    const mac = res.positionals[0] orelse return std.debug.print("Provide a MAC address. Usage: zig-wol wake <MAC> [options]\n", .{});
+    var mac = res.positionals[0] orelse return std.debug.print("Provide a MAC address. Usage: zig-wol wake <MAC> [options]\n", .{});
+
+    // if arg is a MAC
+    var is_maybe_alias = false;
+    _ = wol.parse_mac(mac) catch {
+        is_maybe_alias = true;
+    };
+
+    // try look for matching alias
+    if (is_maybe_alias) {
+        const config_zon = config.readConfigFile();
+        for (config_zon.aliases) |alias| {
+            if (alias.name.len > 0 and std.mem.eql(u8, alias.name, mac)) {
+                mac = alias.mac;
+                break;
+            }
+        }
+    }
 
     try wol.broadcast_magic_packet(mac, res.args.port, res.args.addr);
 }
@@ -97,6 +114,8 @@ fn subCommandAlias(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_
 
     // The parameters for the subcommand.
     const params = comptime clap.parseParamsComptime(
+        \\<str>              Name for the new alias.
+        \\<str>              MAC for the new alias.
         \\-h, --help
     );
 
@@ -111,7 +130,25 @@ fn subCommandAlias(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_
     };
     defer res.deinit();
 
-    std.debug.print("alias subcommand not implemented.\n", .{});
+    const name = res.positionals[0] orelse return std.debug.print("Provide name and MAC for the new alias. Usage: zig-wol alias <NAME> <MAC>\n", .{});
+    const mac = res.positionals[1] orelse return std.debug.print("Provide a MAC address. Usage: zig-wol alias <NAME> <MAC>\n", .{});
+
+    // ensure mac is valid
+    _ = wol.parse_mac(mac) catch |err| {
+        return std.debug.print("Invalid MAC address: {}\n", .{err});
+    };
+
+    // get config from file, add alias and save config to file
+    var config_zon = config.readConfigFile();
+    config_zon.addAlias(config.Alias{
+        .name = name,
+        .mac = mac,
+    }) catch |err| {
+        return std.debug.print("Failed to add alias: {}\n", .{err});
+    };
+    config.writeConfigFile(config_zon);
+
+    std.debug.print("New alias added -> AliasName: {s}\tMAC: {s}\n", .{ name, mac });
 }
 
 fn subCommandList(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_args: MainArgs) !void {
@@ -133,7 +170,13 @@ fn subCommandList(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_a
     };
     defer res.deinit();
 
-    std.debug.print("list subcommand not implemented.\n", .{});
+    const config_zon = config.readConfigFile();
+    const stdout = std.io.getStdOut().writer();
+    for (config_zon.aliases) |alias| {
+        if (alias.name.len > 0) {
+            try stdout.print("AliasName: {s}\tMAC: {s}\n", .{ alias.name, alias.mac });
+        }
+    }
 }
 
 fn subCommandVersion() !void {

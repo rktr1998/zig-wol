@@ -5,7 +5,7 @@ const std = @import("std");
 const network = @import("network");
 
 /// Parse a MAC address string (with separators '-' or ':') into an array of 6 bytes.
-fn parse_mac(mac: []const u8) ![6]u8 {
+pub fn parse_mac(mac: []const u8) ![6]u8 {
     if (mac.len != 17) return error.InvalidMacAddress;
 
     const sep: u8 = mac[2]; // Expect either ':' or '-'
