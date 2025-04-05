@@ -52,13 +52,14 @@ test "parse_mac invalid cases" {
 }
 
 /// Broadcasts a magic packet to wake up a device with the specified MAC address. Only supports IPv4.
-pub fn broadcast_magic_packet(mac: []const u8, port: ?u16, broadcast_address: ?[]const u8) !void {
-    // Default address and port if not provided
+pub fn broadcast_magic_packet(mac: []const u8, port: ?u16, broadcast_address: ?[]const u8, count: ?u8) !void {
+    // Defaults
     const actual_port = port orelse 9;
     const actual_addr = network.Address.IPv4.parse(broadcast_address orelse "255.255.255.255") catch |err| {
         std.debug.print("Invalid broadcast address: {}\n", .{err});
         return err;
     };
+    const actual_count = count orelse 3; // how man times the magic packet is sent
 
     // Parse MAC address to bytes and create magic packet: 6 bytes of 0xFF followed by MAC address repeated 16 times
     const mac_bytes = try parse_mac(mac);
@@ -90,10 +91,12 @@ pub fn broadcast_magic_packet(mac: []const u8, port: ?u16, broadcast_address: ?[
     };
 
     // Send the magic packet
-    _ = sock.sendTo(destEndPoint, &magic_packet) catch |err| {
-        std.debug.print("Failed to send wake-on-lan magic packet: {}\n", .{err});
-        return err;
-    };
+    for (0..actual_count) |_| {
+        _ = sock.sendTo(destEndPoint, &magic_packet) catch |err| {
+            std.debug.print("Failed to send wake-on-lan magic packet: {}\n", .{err});
+            return err;
+        };
+    }
 
-    std.debug.print("Sent wake-on-lan magic packet to target MAC {s} via {s}:{}/udp.\n", .{ mac, actual_addr, actual_port });
+    std.debug.print("Sent {} magic packet to target MAC {s} via {s}:{}/udp.\n", .{ actual_count, mac, actual_addr, actual_port });
 }

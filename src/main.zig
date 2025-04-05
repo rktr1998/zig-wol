@@ -106,7 +106,7 @@ fn subCommandWake(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_a
         }
     }
 
-    try wol.broadcast_magic_packet(mac, res.args.port, res.args.addr);
+    try wol.broadcast_magic_packet(mac, res.args.port, res.args.addr, null);
 }
 
 fn subCommandAlias(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_args: MainArgs) !void {
