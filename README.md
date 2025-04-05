@@ -11,13 +11,19 @@ Written in the [Zig](https://github.com/ziglang/zig) programming language, [zig-
 
 ## Usage
 
-Wake a device on your LAN by broadcasting the magic packet.
+Wake a machine on your LAN by broadcasting the magic packet: replace `<MAC>` with the target MAC address (e.g. `9A-63-A1-FF-8B-4C`).
 
 ```sh
-zig-wol wake <MAC_ADDRESS>
+zig-wol wake <MAC>
 ```
 
-Replace `<MAC_ADDRESS>` with the target MAC address (e.g. `9A-63-A1-FF-8B-4C`).
+Create an alias for a MAC address.
+
+```sh
+zig-wol list                 # display all aliases
+zig-wol alias <NAME> <MAC>   # create an alias
+zig-wol wake <NAME>          # wake a machine by alias
+```
 
 Run `zig-wol help` to display all subcommands and `zig-wol <subcommand> --help` to display specific options.
 
