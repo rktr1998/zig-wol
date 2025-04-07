@@ -1,5 +1,4 @@
 //! This module implements Wake-on-LAN (WoL) basic functionality.
-//! Author: Riccardo Torreggiani
 
 const std = @import("std");
 const network = @import("network");
