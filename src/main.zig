@@ -1,9 +1,9 @@
 const std = @import("std");
 const clap = @import("clap");
 const wol = @import("wol.zig");
-const config = @import("config.zig");
+const alias = @import("alias.zig");
 
-const version = "0.2.0"; // should be read from build.zig.zon at comptime
+const version = "0.2.1"; // should be read from build.zig.zon at comptime
 
 // Implement the subcommands parser
 const SubCommands = enum {
@@ -67,10 +67,10 @@ fn subCommandWake(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_a
 
     // The parameters for the subcommand.
     const params = comptime clap.parseParamsComptime(
-        \\<str>              MAC address of the device to wake up.
-        \\--help             Display this help and exit.
-        \\--port <u16>       UDP port, default 9. This is generally irrelevant since wake-on-lan works with OSI layer 2 (Data Link).
-        \\--addr <str>       IPv4 address, default is broadcast 255.255.255.255.
+        \\<str>           MAC address of the device to wake up.
+        \\--help          Display this help and exit.
+        \\--port <u16>    UDP port, default 9. This is generally irrelevant since wake-on-lan works with OSI layer 2 (Data Link).
+        \\--addr <str>    IPv4 address, default is broadcast 255.255.255.255.
     );
 
     // Here we pass the partially parsed argument iterator.
@@ -87,7 +87,7 @@ fn subCommandWake(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_a
     if (res.args.help != 0)
         return std.debug.print("Provide a MAC address or an alias name. Usage: zig-wol wake <MAC> [options]\n", .{});
 
-    var mac = res.positionals[0] orelse return std.debug.print("Provide a MAC address. Usage: zig-wol wake <MAC> [options]\n", .{});
+    const mac = res.positionals[0] orelse return std.debug.print("Provide a MAC address. Usage: zig-wol wake <MAC> [options]\n", .{});
 
     // if arg is a MAC
     var is_maybe_alias = false;
@@ -95,16 +95,16 @@ fn subCommandWake(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_a
         is_maybe_alias = true;
     };
 
-    // try look for matching alias
-    if (is_maybe_alias) {
-        const config_zon = config.readConfigFile();
-        for (config_zon.aliases) |alias| {
-            if (alias.name.len > 0 and std.mem.eql(u8, alias.name, mac)) {
-                mac = alias.mac;
-                break;
-            }
-        }
-    }
+    // // try look for matching alias
+    // if (is_maybe_alias) {
+    //     const config_zon = alias.readAliasFile(page_allocator);
+    //     for (config_zon.aliases) |alias| {
+    //         if (alias.name.len > 0 and std.mem.eql(u8, alias.name, mac)) {
+    //             mac = alias.mac;
+    //             break;
+    //         }
+    //     }
+    // }
 
     try wol.broadcast_magic_packet(mac, res.args.port, res.args.addr, null);
 }
@@ -139,14 +139,17 @@ fn subCommandAlias(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_
     };
 
     // get config from file, add alias and save config to file
-    var config_zon = config.readConfigFile();
-    config_zon.addAlias(config.Alias{
+    const page_allocator = std.heap.page_allocator;
+    var alias_list = alias.readAliasFile(page_allocator);
+    defer alias_list.deinit();
+    alias_list.append(alias.Alias{
         .name = name,
         .mac = mac,
+        .description = "Alias added from command line.",
     }) catch |err| {
-        return std.debug.print("Failed to add alias: {}\n", .{err});
+        return std.debug.print("Error adding alias: {}\n", .{err});
     };
-    config.writeConfigFile(config_zon);
+    alias.writeAliasFile(alias_list);
 
     std.debug.print("New alias added -> AliasName: {s}\tMAC: {s}\n", .{ name, mac });
 }
@@ -170,11 +173,14 @@ fn subCommandList(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_a
     };
     defer res.deinit();
 
-    const config_zon = config.readConfigFile();
+    const page_allocator = std.heap.page_allocator;
+    const alias_list = alias.readAliasFile(page_allocator);
+    defer alias_list.deinit();
+
     const stdout = std.io.getStdOut().writer();
-    for (config_zon.aliases) |alias| {
-        if (alias.name.len > 0) {
-            try stdout.print("AliasName: {s}\tMAC: {s}\n", .{ alias.name, alias.mac });
+    for (alias_list.items) |item| {
+        if (item.name.len > 0) {
+            try stdout.print("MAC: {s}\tAliasName: {s}\n", .{ item.mac, item.name });
         }
     }
 }
