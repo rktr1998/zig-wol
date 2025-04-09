@@ -39,7 +39,9 @@ pub fn readAliasFile(allocator: std.mem.Allocator) ArrayList(Alias) {
     // Check if the alias file exists and if not create the default alias file
     if (!aliasFileExists()) {
         std.debug.print("Alias list file does not exist, creating the default file...\n", .{});
-        return getExampleAliasList(allocator);
+        const example_alias_list = getExampleAliasList(allocator);
+        writeAliasFile(example_alias_list);
+        return example_alias_list;
     }
 
     // Open the alias file
