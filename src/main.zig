@@ -3,12 +3,13 @@ const clap = @import("clap");
 const wol = @import("wol.zig");
 const alias = @import("alias.zig");
 
-const version = "0.2.1"; // should be read from build.zig.zon at comptime
+const version = "0.2.2"; // should be read from build.zig.zon at comptime
 
 // Implement the subcommands parser
 const SubCommands = enum {
     wake,
     alias,
+    remove,
     list,
     version,
     help,
@@ -56,6 +57,7 @@ pub fn main() !void {
     switch (subcommand) {
         .wake => try subCommandWake(gpa, &iter, res),
         .alias => try subCommandAlias(gpa, &iter, res),
+        .remove => try subCommandRemove(gpa, &iter, res),
         .list => try subCommandList(gpa, &iter, res),
         .version => try subCommandVersion(),
         .help => try subCommandHelp(),
@@ -152,6 +154,56 @@ fn subCommandAlias(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_
     alias.writeAliasFile(alias_list);
 
     std.debug.print("New alias added -> AliasName: {s}\tMAC: {s}\n", .{ name, mac });
+}
+
+fn subCommandRemove(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_args: MainArgs) !void {
+    _ = main_args; // parent args not used
+
+    // The parameters for the subcommand.
+    const params = comptime clap.parseParamsComptime(
+        \\<str>?             Name for the alias to remove. Optional if --all is provided.
+        \\--all              Remove all aliases.
+        \\-h, --help
+    );
+
+    // Here we pass the partially parsed argument iterator.
+    var diag = clap.Diagnostic{};
+    var res = clap.parseEx(clap.Help, &params, clap.parsers.default, iter, .{
+        .diagnostic = &diag,
+        .allocator = gpa,
+    }) catch |err| {
+        diag.report(std.io.getStdErr().writer(), err) catch {};
+        return err;
+    };
+    defer res.deinit();
+
+    const name = res.positionals[0] orelse "";
+
+    if (name.len == 0 and res.args.all != 0) {
+        // remove all aliases
+        const page_allocator = std.heap.page_allocator;
+        var alias_list = alias.readAliasFile(page_allocator);
+        defer alias_list.deinit();
+        alias_list.clearAndFree();
+        alias.writeAliasFile(alias_list);
+        std.debug.print("All aliases removed.\n", .{});
+        return;
+    }
+
+    // get config from file, remove alias and save config to file
+    const page_allocator = std.heap.page_allocator;
+    var alias_list = alias.readAliasFile(page_allocator);
+    defer alias_list.deinit();
+
+    for (alias_list.items, 0..) |item, idx| {
+        if (std.mem.eql(u8, item.name, name)) {
+            _ = alias_list.orderedRemove(idx);
+            alias.writeAliasFile(alias_list);
+            std.debug.print("Alias removed -> AliasName: {s}\n", .{name});
+            return;
+        }
+    }
+    std.debug.print("Alias not found -> AliasName: {s}\n", .{name});
 }
 
 fn subCommandList(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_args: MainArgs) !void {
