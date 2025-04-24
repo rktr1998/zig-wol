@@ -93,7 +93,6 @@ pub fn writeAliasFile(alias_list: ArrayList(Alias)) void {
         std.debug.print("Error serializing alias file: {}\n", .{err});
         unreachable;
     };
-    std.debug.print("Alias file written successfully.\n", .{});
 }
 
 /// Computes the absolute path to the alias file in the same directory as the executable.

@@ -161,7 +161,7 @@ fn subCommandRemove(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main
 
     // The parameters for the subcommand.
     const params = comptime clap.parseParamsComptime(
-        \\<str>?             Name for the alias to remove. Optional if --all is provided.
+        \\<str>?             Name of the alias to be removed.
         \\--all              Remove all aliases.
         \\-h, --help
     );
@@ -179,18 +179,24 @@ fn subCommandRemove(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main
 
     const name = res.positionals[0] orelse "";
 
-    if (name.len == 0 and res.args.all != 0) {
-        // remove all aliases
+    // if --all is provided, remove all aliases
+    if (res.args.all != 0) {
         const page_allocator = std.heap.page_allocator;
         var alias_list = alias.readAliasFile(page_allocator);
+        const alias_count = alias_list.items.len;
         defer alias_list.deinit();
         alias_list.clearAndFree();
         alias.writeAliasFile(alias_list);
-        std.debug.print("All aliases removed.\n", .{});
+        std.debug.print("Removed {} aliases.\n", .{alias_count});
         return;
     }
 
-    // get config from file, remove alias and save config to file
+    // if name len is 0 or --help is provided, print help message
+    if (name.len == 0 or res.args.help != 0) {
+        return std.debug.print("Provide an alias name to remove. Usage: zig-wol remove <NAME>\n", .{});
+    }
+
+    // finally, if a name is provided, remove the alias
     const page_allocator = std.heap.page_allocator;
     var alias_list = alias.readAliasFile(page_allocator);
     defer alias_list.deinit();
@@ -247,8 +253,9 @@ fn subCommandHelp() !void {
         \\Usage: zig-wol <command> [options]
         \\Commands:
         \\  wake    Wake up a device by its MAC address.
-        \\  alias   Manage aliases for MAC addresses. [not implemented]
-        \\  list    List all aliases. [not implemented]
+        \\  alias   Manage aliases for MAC addresses.
+        \\  remove  Remove an alias by its name.
+        \\  list    List all aliases.
         \\  version Display the version of the program.
         \\  help    Display help for the program or a specific command.
         \\
