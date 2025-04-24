@@ -3,12 +3,13 @@ const clap = @import("clap");
 const wol = @import("wol.zig");
 const alias = @import("alias.zig");
 
-const version = "0.2.1"; // should be read from build.zig.zon at comptime
+const version = "0.2.2"; // should be read from build.zig.zon at comptime
 
 // Implement the subcommands parser
 const SubCommands = enum {
     wake,
     alias,
+    remove,
     list,
     version,
     help,
@@ -56,6 +57,7 @@ pub fn main() !void {
     switch (subcommand) {
         .wake => try subCommandWake(gpa, &iter, res),
         .alias => try subCommandAlias(gpa, &iter, res),
+        .remove => try subCommandRemove(gpa, &iter, res),
         .list => try subCommandList(gpa, &iter, res),
         .version => try subCommandVersion(),
         .help => try subCommandHelp(),
@@ -154,6 +156,62 @@ fn subCommandAlias(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_
     std.debug.print("New alias added -> AliasName: {s}\tMAC: {s}\n", .{ name, mac });
 }
 
+fn subCommandRemove(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_args: MainArgs) !void {
+    _ = main_args; // parent args not used
+
+    // The parameters for the subcommand.
+    const params = comptime clap.parseParamsComptime(
+        \\<str>?             Name of the alias to be removed.
+        \\--all              Remove all aliases.
+        \\-h, --help
+    );
+
+    // Here we pass the partially parsed argument iterator.
+    var diag = clap.Diagnostic{};
+    var res = clap.parseEx(clap.Help, &params, clap.parsers.default, iter, .{
+        .diagnostic = &diag,
+        .allocator = gpa,
+    }) catch |err| {
+        diag.report(std.io.getStdErr().writer(), err) catch {};
+        return err;
+    };
+    defer res.deinit();
+
+    const name = res.positionals[0] orelse "";
+
+    // if --all is provided, remove all aliases
+    if (res.args.all != 0) {
+        const page_allocator = std.heap.page_allocator;
+        var alias_list = alias.readAliasFile(page_allocator);
+        const alias_count = alias_list.items.len;
+        defer alias_list.deinit();
+        alias_list.clearAndFree();
+        alias.writeAliasFile(alias_list);
+        std.debug.print("Removed {} aliases.\n", .{alias_count});
+        return;
+    }
+
+    // if name len is 0 or --help is provided, print help message
+    if (name.len == 0 or res.args.help != 0) {
+        return std.debug.print("Provide an alias name to remove. Usage: zig-wol remove <NAME>\n", .{});
+    }
+
+    // finally, if a name is provided, remove the alias
+    const page_allocator = std.heap.page_allocator;
+    var alias_list = alias.readAliasFile(page_allocator);
+    defer alias_list.deinit();
+
+    for (alias_list.items, 0..) |item, idx| {
+        if (std.mem.eql(u8, item.name, name)) {
+            _ = alias_list.orderedRemove(idx);
+            alias.writeAliasFile(alias_list);
+            std.debug.print("Alias removed -> AliasName: {s}\n", .{name});
+            return;
+        }
+    }
+    std.debug.print("Alias not found -> AliasName: {s}\n", .{name});
+}
+
 fn subCommandList(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_args: MainArgs) !void {
     _ = main_args; // parent args not used
 
@@ -195,8 +253,9 @@ fn subCommandHelp() !void {
         \\Usage: zig-wol <command> [options]
         \\Commands:
         \\  wake    Wake up a device by its MAC address.
-        \\  alias   Manage aliases for MAC addresses. [not implemented]
-        \\  list    List all aliases. [not implemented]
+        \\  alias   Manage aliases for MAC addresses.
+        \\  remove  Remove an alias by its name.
+        \\  list    List all aliases.
         \\  version Display the version of the program.
         \\  help    Display help for the program or a specific command.
         \\
