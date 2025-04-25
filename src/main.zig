@@ -255,9 +255,13 @@ fn subCommandList(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_a
 
     const stdout = std.io.getStdOut().writer();
     for (alias_list.items) |item| {
-        if (item.name.len > 0) {
-            try stdout.print("MAC: {s}\tAliasName: {s}\n", .{ item.mac, item.name });
-        }
+        try stdout.print("Name: {s}\nMAC: {s}\nAddress: {s}\nPort: {d}\nDescription: {s}\n\n", .{
+            item.name,
+            item.mac,
+            item.address,
+            item.port,
+            item.description,
+        });
     }
 }
 
