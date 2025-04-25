@@ -50,6 +50,22 @@ test "parse_mac invalid cases" {
     try std.testing.expectError(error.InvalidMacAddress, parse_mac("")); // Empty string
 }
 
+pub fn is_mac_valid(mac: []const u8) bool {
+    _ = parse_mac(mac) catch return false;
+    return true;
+}
+
+test "is_mac_valid" {
+    try std.testing.expectEqual(is_mac_valid("01:23:45:67:89:ab"), true);
+    try std.testing.expectEqual(is_mac_valid("01-23-45-67-89-ab"), true);
+    try std.testing.expectEqual(is_mac_valid("01:23:45:67:89"), false); // Too short
+    try std.testing.expectEqual(is_mac_valid("01:23:45:67:89:AB:CD"), false); // Too long
+    try std.testing.expectEqual(is_mac_valid("01:23:45:67:89:GG"), false); // Invalid hex
+    try std.testing.expectEqual(is_mac_valid("01-23:45-67-89:AB"), false); // Mixed separators
+    try std.testing.expectEqual(is_mac_valid("01::23:45:67:89:AB"), false); // Extra colon
+    try std.testing.expectEqual(is_mac_valid(""), false); // Empty string
+}
+
 /// Broadcasts a magic packet to wake up a device with the specified MAC address. Only supports IPv4.
 pub fn broadcast_magic_packet(mac: []const u8, port: ?u16, broadcast_address: ?[]const u8, count: ?u8) !void {
     // Defaults

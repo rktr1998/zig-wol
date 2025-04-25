@@ -91,24 +91,22 @@ fn subCommandWake(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_a
 
     const mac = res.positionals[0] orelse return std.debug.print("Provide a MAC address. Usage: zig-wol wake <MAC> [options]\n", .{});
 
-    // if arg is a MAC
-    var is_maybe_alias = false;
-    _ = wol.parse_mac(mac) catch {
-        is_maybe_alias = true;
-    };
-
-    // // try look for matching alias
-    // if (is_maybe_alias) {
-    //     const config_zon = alias.readAliasFile(page_allocator);
-    //     for (config_zon.aliases) |alias| {
-    //         if (alias.name.len > 0 and std.mem.eql(u8, alias.name, mac)) {
-    //             mac = alias.mac;
-    //             break;
-    //         }
-    //     }
-    // }
-
-    try wol.broadcast_magic_packet(mac, res.args.port, res.args.addr, null);
+    if (wol.is_mac_valid(mac)) {
+        // if arg is a valid MAC
+        return try wol.broadcast_magic_packet(mac, res.args.port, res.args.addr, null);
+    } else {
+        // if it's not a MAC maybe it's an alias name
+        const page_allocator = std.heap.page_allocator;
+        const alias_list = alias.readAliasFile(page_allocator);
+        defer alias_list.deinit();
+        for (alias_list.items) |item| {
+            if (item.name.len > 0 and std.mem.eql(u8, item.name, mac)) {
+                return try wol.broadcast_magic_packet(item.mac, res.args.port, res.args.addr, null);
+            }
+        }
+        // if it's not an alias name either
+        std.debug.print("The provided argument {s} is neither a valid MAC nor an existing alias name.\n", .{mac});
+    }
 }
 
 fn subCommandAlias(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_args: MainArgs) !void {
