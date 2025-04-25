@@ -3,7 +3,7 @@ const clap = @import("clap");
 const wol = @import("wol.zig");
 const alias = @import("alias.zig");
 
-const version = "0.2.2"; // should be read from build.zig.zon at comptime
+const version = "0.3.0"; // should be read from build.zig.zon at comptime
 
 // Implement the subcommands parser
 const SubCommands = enum {
@@ -69,10 +69,10 @@ fn subCommandWake(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_a
 
     // The parameters for the subcommand.
     const params = comptime clap.parseParamsComptime(
-        \\<str>           MAC address of the device to wake up.
-        \\--help          Display this help and exit.
-        \\--port <u16>    UDP port, default 9. This is generally irrelevant since wake-on-lan works with OSI layer 2 (Data Link).
-        \\--addr <str>    IPv4 address, default is broadcast 255.255.255.255.
+        \\<str>             MAC address of the device to wake up, or an existing alias name.
+        \\--help            Display this help and exit.
+        \\--address <str>   IPv4 address, default is broadcast 255.255.255.255, setting this may be required in some scenarios.
+        \\--port <u16>      UDP port, default 9. Generally irrelevant since wake-on-lan works with OSI layer 2 (Data Link).
     );
 
     // Here we pass the partially parsed argument iterator.
@@ -86,14 +86,16 @@ fn subCommandWake(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_a
     };
     defer res.deinit();
 
-    if (res.args.help != 0)
-        return std.debug.print("Provide a MAC address or an alias name. Usage: zig-wol wake <MAC> [options]\n", .{});
+    const help_message = "Provide a MAC address or an alias name. Usage: zig-wol wake <MAC or ALIAS> [options]\n";
 
-    const mac = res.positionals[0] orelse return std.debug.print("Provide a MAC address. Usage: zig-wol wake <MAC> [options]\n", .{});
+    if (res.args.help != 0)
+        return std.debug.print("{s}", .{help_message});
+
+    const mac = res.positionals[0] orelse return std.debug.print("{s}", .{help_message});
 
     if (wol.is_mac_valid(mac)) {
         // if arg is a valid MAC
-        return try wol.broadcast_magic_packet(mac, res.args.port, res.args.addr, null);
+        return try wol.broadcast_magic_packet(mac, res.args.port, res.args.address, null);
     } else {
         // if it's not a MAC maybe it's an alias name
         const page_allocator = std.heap.page_allocator;
@@ -101,11 +103,11 @@ fn subCommandWake(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_a
         defer alias_list.deinit();
         for (alias_list.items) |item| {
             if (item.name.len > 0 and std.mem.eql(u8, item.name, mac)) {
-                return try wol.broadcast_magic_packet(item.mac, res.args.port, res.args.addr, null);
+                return try wol.broadcast_magic_packet(item.mac, item.port, item.address, null);
             }
         }
         // if it's not an alias name either
-        std.debug.print("The provided argument {s} is neither a valid MAC nor an existing alias name.\n", .{mac});
+        std.debug.print("Provided argument {s} is neither a valid MAC nor an existing alias name.\n", .{mac});
     }
 }
 
@@ -114,8 +116,11 @@ fn subCommandAlias(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_
 
     // The parameters for the subcommand.
     const params = comptime clap.parseParamsComptime(
-        \\<str>              Name for the new alias.
-        \\<str>              MAC for the new alias.
+        \\<str>                 Name for the new alias.
+        \\<str>                 MAC for the new alias.
+        \\--address <str>       IPv4 address, default is 255.255.255.255, setting this may be required in some scenarios.
+        \\--port <u16>          UDP port, default 9. Generally irrelevant since wake-on-lan works with OSI layer 2 (Data Link).
+        \\--description <str>   Description for the new alias.
         \\-h, --help
     );
 
@@ -132,6 +137,9 @@ fn subCommandAlias(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_
 
     const name = res.positionals[0] orelse return std.debug.print("Provide name and MAC for the new alias. Usage: zig-wol alias <NAME> <MAC>\n", .{});
     const mac = res.positionals[1] orelse return std.debug.print("Provide a MAC address. Usage: zig-wol alias <NAME> <MAC>\n", .{});
+    const address = res.args.address orelse "255.255.255.255";
+    const port = res.args.port orelse 9;
+    const description = res.args.description orelse "";
 
     // ensure mac is valid
     _ = wol.parse_mac(mac) catch |err| {
@@ -142,16 +150,27 @@ fn subCommandAlias(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_
     const page_allocator = std.heap.page_allocator;
     var alias_list = alias.readAliasFile(page_allocator);
     defer alias_list.deinit();
+
+    // check if alias already exists
+    for (alias_list.items) |item| {
+        if (std.mem.eql(u8, item.name, name)) {
+            return std.debug.print("Failed to add alias: name already exists.", .{});
+        }
+    }
+
+    // append new alias
     alias_list.append(alias.Alias{
         .name = name,
         .mac = mac,
-        .description = "Alias added from command line.",
+        .address = address,
+        .port = port,
+        .description = description,
     }) catch |err| {
-        return std.debug.print("Error adding alias: {}\n", .{err});
+        return std.debug.print("Failed to add alias: {}\n", .{err});
     };
     alias.writeAliasFile(alias_list);
 
-    std.debug.print("New alias added -> AliasName: {s}\tMAC: {s}\n", .{ name, mac });
+    std.debug.print("Alias added.\n", .{});
 }
 
 fn subCommandRemove(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_args: MainArgs) !void {
@@ -159,8 +178,8 @@ fn subCommandRemove(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main
 
     // The parameters for the subcommand.
     const params = comptime clap.parseParamsComptime(
-        \\<str>?             Name of the alias to be removed.
-        \\--all              Remove all aliases.
+        \\<str>?       Name of the alias to be removed.
+        \\--all        Remove all aliases.
         \\-h, --help
     );
 
@@ -191,7 +210,8 @@ fn subCommandRemove(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main
 
     // if name len is 0 or --help is provided, print help message
     if (name.len == 0 or res.args.help != 0) {
-        return std.debug.print("Provide an alias name to remove. Usage: zig-wol remove <NAME>\n", .{});
+        std.debug.print("Provide an alias name to remove. Usage: zig-wol remove <NAME>\n", .{});
+        return std.debug.print("To remove all aliases: zig-wol remove --all\n", .{});
     }
 
     // finally, if a name is provided, remove the alias
@@ -203,11 +223,11 @@ fn subCommandRemove(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main
         if (std.mem.eql(u8, item.name, name)) {
             _ = alias_list.orderedRemove(idx);
             alias.writeAliasFile(alias_list);
-            std.debug.print("Alias removed -> AliasName: {s}\n", .{name});
+            std.debug.print("Alias removed.\n", .{});
             return;
         }
     }
-    std.debug.print("Alias not found -> AliasName: {s}\n", .{name});
+    std.debug.print("Alias not found.\n", .{});
 }
 
 fn subCommandList(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_args: MainArgs) !void {
@@ -250,12 +270,12 @@ fn subCommandHelp() !void {
     const message =
         \\Usage: zig-wol <command> [options]
         \\Commands:
-        \\  wake    Wake up a device by its MAC address.
-        \\  alias   Manage aliases for MAC addresses.
-        \\  remove  Remove an alias by its name.
-        \\  list    List all aliases.
-        \\  version Display the version of the program.
-        \\  help    Display help for the program or a specific command.
+        \\  wake      Wake up a device by its MAC address.
+        \\  alias     Manage aliases for MAC addresses.
+        \\  remove    Remove an alias by its name.
+        \\  list      List all aliases.
+        \\  version   Display the version of the program.
+        \\  help      Display help for the program or a specific command.
         \\
         \\Run 'zig-wol <command> --help' for more information on a specific command.
     ;

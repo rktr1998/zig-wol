@@ -4,6 +4,8 @@ const ArrayList = std.ArrayList;
 pub const Alias = struct {
     name: []const u8,
     mac: []const u8,
+    address: []const u8,
+    port: u16,
     description: []const u8,
 };
 
@@ -14,6 +16,8 @@ fn getExampleAliasList(allocator: std.mem.Allocator) ArrayList(Alias) {
     alias_list.append(Alias{
         .name = "alias-example",
         .mac = "01-01-01-ab-ab-ab",
+        .address = "255.255.255.255",
+        .port = 9,
         .description = "Alias example description.",
     }) catch unreachable;
 
