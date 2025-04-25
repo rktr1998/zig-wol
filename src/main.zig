@@ -73,6 +73,7 @@ fn subCommandWake(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_a
         \\--help            Display this help and exit.
         \\--address <str>   IPv4 address, default is broadcast 255.255.255.255, setting this may be required in some scenarios.
         \\--port <u16>      UDP port, default 9. Generally irrelevant since wake-on-lan works with OSI layer 2 (Data Link).
+        \\--all             Wake up all devices in the alias list.
     );
 
     // Here we pass the partially parsed argument iterator.
@@ -90,6 +91,18 @@ fn subCommandWake(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_a
 
     if (res.args.help != 0)
         return std.debug.print("{s}", .{help_message});
+
+    // if --all is provided, wake up all devices in the alias list
+    if (res.args.all != 0) {
+        const page_allocator = std.heap.page_allocator;
+        var alias_list = alias.readAliasFile(page_allocator);
+        defer alias_list.deinit();
+        for (alias_list.items) |item| {
+            try wol.broadcast_magic_packet(item.mac, item.port, item.address, null);
+            std.Thread.sleep(100 * std.time.ns_per_ms); // sleep 100ms
+        }
+        return;
+    }
 
     const mac = res.positionals[0] orelse return std.debug.print("{s}", .{help_message});
 
