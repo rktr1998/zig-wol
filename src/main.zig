@@ -3,7 +3,7 @@ const clap = @import("clap");
 const wol = @import("wol.zig");
 const alias = @import("alias.zig");
 
-const version = "0.3.0"; // should be read from build.zig.zon at comptime
+const version = "0.3.1"; // should be read from build.zig.zon at comptime
 
 // Implement the subcommands parser
 const SubCommands = enum {
@@ -26,6 +26,7 @@ const MainArgs = clap.ResultEx(clap.Help, &main_params, main_parsers);
 
 /// Entry point of zig-wol.exe
 pub fn main() !void {
+
     // Initialize allocator for the command line arguments parsing
     var gpa_state = std.heap.GeneralPurposeAllocator(.{}){};
     const gpa = gpa_state.allocator();
@@ -98,7 +99,7 @@ fn subCommandWake(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_a
         var alias_list = alias.readAliasFile(page_allocator);
         defer alias_list.deinit();
         for (alias_list.items) |item| {
-            try wol.broadcast_magic_packet(item.mac, item.port, item.address, null);
+            try wol.broadcast_magic_packet_ipv4(item.mac, item.port, item.address, null);
             std.Thread.sleep(100 * std.time.ns_per_ms); // sleep 100ms
         }
         return;
@@ -108,7 +109,7 @@ fn subCommandWake(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_a
 
     if (wol.is_mac_valid(mac)) {
         // if arg is a valid MAC
-        return try wol.broadcast_magic_packet(mac, res.args.port, res.args.address, null);
+        return try wol.broadcast_magic_packet_ipv4(mac, res.args.port, res.args.address, null);
     } else {
         // if it's not a MAC maybe it's an alias name
         const page_allocator = std.heap.page_allocator;
@@ -116,7 +117,7 @@ fn subCommandWake(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_a
         defer alias_list.deinit();
         for (alias_list.items) |item| {
             if (item.name.len > 0 and std.mem.eql(u8, item.name, mac)) {
-                return try wol.broadcast_magic_packet(item.mac, item.port, item.address, null);
+                return try wol.broadcast_magic_packet_ipv4(item.mac, item.port, item.address, null);
             }
         }
         // if it's not an alias name either
