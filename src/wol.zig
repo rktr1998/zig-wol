@@ -66,23 +66,31 @@ test "is_mac_valid" {
     try std.testing.expectEqual(is_mac_valid(""), false); // Empty string
 }
 
-/// Broadcasts a magic packet to wake up a device with the specified MAC address. Only supports IPv4.
-pub fn broadcast_magic_packet(mac: []const u8, port: ?u16, broadcast_address: ?[]const u8, count: ?u8) !void {
+fn generate_magic_packet(mac_bytes: [6]u8) [102]u8 {
+    var packet: [102]u8 = undefined;
+    @memset(packet[0..6], 0xFF); // First 6 bytes are 0xFF
+    for (0..16) |i| {
+        @memcpy(packet[6 + i * 6 .. 6 + (i + 1) * 6], &mac_bytes);
+    }
+    return packet;
+}
+
+/// Broadcasts a magic packet to wake up a device with the specified MAC address.
+pub fn broadcast_magic_packet_ipv4(mac: []const u8, port: ?u16, address: ?[]const u8, count: ?u8) !void {
     // Defaults
     const actual_port = port orelse 9;
-    const actual_addr = network.Address.IPv4.parse(broadcast_address orelse "255.255.255.255") catch |err| {
+    const actual_address = network.Address.IPv4.parse(address orelse "255.255.255.255") catch |err| {
         std.debug.print("Invalid broadcast address: {}\n", .{err});
         return err;
     };
     const actual_count = count orelse 3; // how man times the magic packet is sent
 
     // Parse MAC address to bytes and create magic packet: 6 bytes of 0xFF followed by MAC address repeated 16 times
-    const mac_bytes = try parse_mac(mac);
-    var magic_packet: [102]u8 = undefined;
-    @memset(magic_packet[0..6], 0xFF);
-    for (0..16) |i| {
-        @memcpy(magic_packet[6 + i * 6 .. 6 + (i + 1) * 6], &mac_bytes);
-    }
+    const mac_bytes = parse_mac(mac) catch |err| {
+        std.debug.print("Invalid MAC address: {}\n", .{err});
+        return err;
+    };
+    const magic_packet = generate_magic_packet(mac_bytes);
 
     // Initialize network
     try network.init();
@@ -91,27 +99,24 @@ pub fn broadcast_magic_packet(mac: []const u8, port: ?u16, broadcast_address: ?[
     // Create a UDP socket
     var sock = try network.Socket.create(.ipv4, .udp);
     defer sock.close();
-    try sock.setBroadcast(true);
 
-    // Bind to any address, port 0
-    try sock.bind(network.EndPoint{
-        .address = network.Address{ .ipv4 = network.Address.IPv4.any },
-        .port = 0,
-    });
+    sock.setBroadcast(true) catch |err| {
+        std.debug.print("Failed to set socket to broadcast mode: {}\n", .{err});
+        return err;
+    };
 
-    // Destination broadcast address 255.255.255.255:9
     const destEndPoint = network.EndPoint{
-        .address = network.Address{ .ipv4 = actual_addr },
+        .address = network.Address{ .ipv4 = actual_address },
         .port = actual_port,
     };
 
     // Send the magic packet
     for (0..actual_count) |_| {
         _ = sock.sendTo(destEndPoint, &magic_packet) catch |err| {
-            std.debug.print("Failed to send wake-on-lan magic packet: {}\n", .{err});
+            std.debug.print("Failed to send to {s}.\n", .{actual_address});
             return err;
         };
     }
 
-    std.debug.print("Sent {} magic packet to target MAC {s} via {s}:{}/udp.\n", .{ actual_count, mac, actual_addr, actual_port });
+    std.debug.print("Sent {} magic packet to target MAC {s} via {s}:{}/udp.\n", .{ actual_count, mac, actual_address, actual_port });
 }
