@@ -1,7 +1,4 @@
-//! This module implements Wake-on-LAN (WoL) basic functionality.
-
 const std = @import("std");
-const network = @import("network");
 
 /// Parse a MAC address string (with separators '-' or ':') into an array of 6 bytes.
 pub fn parse_mac(mac: []const u8) ![6]u8 {
@@ -79,10 +76,7 @@ fn generate_magic_packet(mac_bytes: [6]u8) [102]u8 {
 pub fn broadcast_magic_packet_ipv4(mac: []const u8, port: ?u16, address: ?[]const u8, count: ?u8) !void {
     // Defaults
     const actual_port = port orelse 9;
-    const actual_address = network.Address.IPv4.parse(address orelse "255.255.255.255") catch |err| {
-        std.debug.print("Invalid broadcast address: {}\n", .{err});
-        return err;
-    };
+    const actual_address = try std.net.Address.parseIp(address orelse "255.255.255.255", actual_port);
     const actual_count = count orelse 3; // how man times the magic packet is sent
 
     // Parse MAC address to bytes and create magic packet: 6 bytes of 0xFF followed by MAC address repeated 16 times
@@ -92,31 +86,24 @@ pub fn broadcast_magic_packet_ipv4(mac: []const u8, port: ?u16, address: ?[]cons
     };
     const magic_packet = generate_magic_packet(mac_bytes);
 
-    // Initialize network
-    try network.init();
-    defer network.deinit();
-
     // Create a UDP socket
-    var sock = try network.Socket.create(.ipv4, .udp);
-    defer sock.close();
+    const socket = try std.posix.socket(std.posix.AF.INET, std.posix.SOCK.DGRAM, std.posix.IPPROTO.UDP);
+    defer std.posix.close(socket);
 
-    sock.setBroadcast(true) catch |err| {
-        std.debug.print("Failed to set socket to broadcast mode: {}\n", .{err});
+    // Enable socket broadcast (setting SO_BROADCAST to anything othen than empty string enables broadcast)
+    const option_value: u32 = 1;
+    std.posix.setsockopt(socket, std.posix.SOL.SOCKET, std.posix.SO.BROADCAST, std.mem.asBytes(&option_value)) catch |err| {
+        std.debug.print("Failed to set socket option to enable broadcast: {}\n", .{err});
         return err;
-    };
-
-    const destEndPoint = network.EndPoint{
-        .address = network.Address{ .ipv4 = actual_address },
-        .port = actual_port,
     };
 
     // Send the magic packet
     for (0..actual_count) |_| {
-        _ = sock.sendTo(destEndPoint, &magic_packet) catch |err| {
-            std.debug.print("Failed to send to {s}.\n", .{actual_address});
+        _ = std.posix.sendto(socket, &magic_packet, 0, &actual_address.any, actual_address.getOsSockLen()) catch |err| {
+            // std.debug.print("Failed to send to {s}.\n", .{actual_address.in});
             return err;
         };
     }
 
-    std.debug.print("Sent {} magic packet to target MAC {s} via {s}:{}/udp.\n", .{ actual_count, mac, actual_address, actual_port });
+    std.debug.print("Sent {} magic packet to target MAC {s} via {}/udp.\n", .{ actual_count, mac, actual_address });
 }

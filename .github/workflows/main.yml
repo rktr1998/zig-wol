@@ -2,53 +2,47 @@ name: Automatic build release on tag
 
 on:
   push:
-    tags:        
+    tags:
       - '*'
 
 jobs:
   build_and_release:
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
     permissions: write-all
-    strategy:
-      matrix:
-        os: [windows-latest, ubuntu-latest]
-        arch: [x86_64, aarch64]
-        include:
-          - os: windows-latest
-            ext_zip: ".zip"
-            ext_tar: ".tar.gz"
-            platform: windows
-          - os: ubuntu-latest
-            ext_zip: ".zip"
-            ext_tar: ".tar.gz"
-            platform: linux
-
     steps:
       - name: Check out code
         uses: actions/checkout@v4
 
       - name: Set up Zig compiler
-        uses: mlugg/setup-zig@v1.2.1
+        uses: mlugg/setup-zig@v2
         with:
           version: '0.14.0'
 
-      - name: Build project
+      - name: Build for all targets
         run: |
-          zig build -Dtarget=${{ matrix.arch }}-${{ matrix.platform }} --release=small
+          declare -a targets=(
+            "x86_64-windows"
+            "aarch64-windows"
+            "x86_64-linux"
+            "aarch64-linux"
+            "x86_64-macos"
+            "aarch64-macos"
+          )
           mkdir -p artifacts
-          if [ "$RUNNER_OS" == "Windows" ]; then
-            pwsh -c 'Compress-Archive -Path zig-out/bin/* -DestinationPath artifacts/zig-wol-${{ matrix.arch }}-${{ matrix.platform }}.zip'
-          else
-            zip -r artifacts/zig-wol-${{ matrix.arch }}-${{ matrix.platform }}.zip zig-out/bin/*
-          fi
-          tar -czvf artifacts/zig-wol-${{ matrix.arch }}-${{ matrix.platform }}.tar.gz -C zig-out/bin .
-        shell: bash      
+
+          for tgt in "${targets[@]}"; do
+            zig build -Dtarget="$tgt" --release=small --prefix "zig-out/$tgt"
+            binpath="zig-out/$tgt/bin"
+
+            # tar.gz only
+            tar -czf "artifacts/zig-wol-${tgt}.tar.gz" -C "$binpath" .
+          done
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: zig-wol-${{ matrix.arch }}-${{ matrix.platform }}
-          path: artifacts/*
+          name: zig-wol-artifacts
+          path: artifacts/*.tar.gz
 
   release:
     needs: build_and_release
@@ -67,6 +61,6 @@ jobs:
           name: ${{ github.ref_name }}
           draft: false
           prerelease: false
-          files: artifacts/*/*
+          files: artifacts/*
         env:
           GITHUB_TOKEN: ${{ secrets.PAT_ONLY_CONTENTS }}
