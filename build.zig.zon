@@ -1,13 +1,9 @@
 .{
     .name = .zigwol,
     .fingerprint = 0xde77714c68dfba75,
-    .version = "0.3.1",
+    .version = "0.4.0",
     .minimum_zig_version = "0.14.0",
     .dependencies = .{
-        .network = .{
-            .url = "git+https://github.com/ikskuh/zig-network#8db1aa2f5efdf1e2ff6dd5f5f8efe1b4f44ff978",
-            .hash = "12203ae90636504172540e6e0feb2881affd82768af6f0a379cb84a3f70b53705fe5",
-        },
         .clap = .{
             .url = "git+https://github.com/Hejsil/zig-clap#a39ab2595d685526a6fb13f9caba7317a2686a7d",
             .hash = "1220065222573a7108ef7113aac0a076c785f70aedcc8667f55886b3c0aea6a3ead8",

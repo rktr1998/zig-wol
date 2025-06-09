@@ -12,7 +12,6 @@ pub fn build(b: *std.Build) void {
     });
 
     // Dependencies from build.zig.zon
-    exe.root_module.addImport("network", b.dependency("network", .{}).module("network"));
     exe.root_module.addImport("clap", b.dependency("clap", .{}).module("clap"));
 
     // Install the executable
