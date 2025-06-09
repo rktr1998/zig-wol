@@ -33,8 +33,6 @@ jobs:
           for tgt in "${targets[@]}"; do
             zig build -Dtarget="$tgt" --release=small --prefix "zig-out/$tgt"
             binpath="zig-out/$tgt/bin"
-
-            # tar.gz only
             tar -czf "artifacts/zig-wol-${tgt}.tar.gz" -C "$binpath" .
           done
 
@@ -47,20 +45,24 @@ jobs:
   release:
     needs: build_and_release
     runs-on: ubuntu-latest
+    permissions: write-all
     steps:
-      - name: Download all build artifacts
+      - name: Download build artifacts
         uses: actions/download-artifact@v4
         with:
+          name: zig-wol-artifacts
           path: artifacts
 
+      - name: List downloaded artifacts
+        run: ls -lh artifacts
+
       - name: Create GitHub Release
-        id: create_release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ github.ref_name }}
           name: ${{ github.ref_name }}
           draft: false
           prerelease: false
-          files: artifacts/*
+          files: artifacts/*.tar.gz
         env:
           GITHUB_TOKEN: ${{ secrets.PAT_ONLY_CONTENTS }}
