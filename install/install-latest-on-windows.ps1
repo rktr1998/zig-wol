@@ -4,20 +4,16 @@ $apiUrl = "https://api.github.com/repos/$repo/releases/latest"
 $latestRelease = Invoke-RestMethod -Uri $apiUrl
 $latestTag = $latestRelease.tag_name
 
-$arch = $env:PROCESSOR_ARCHITECTURE
-if ($arch -eq "AMD64") {
-    $arch = "x86_64"
-} elseif ($arch -eq "ARM64") {
-    $arch = "aarch64"
-} else {
-    Write-Host "Unsupported architecture: $arch"
-    exit 1
+switch ($env:PROCESSOR_ARCHITECTURE) {
+    "AMD64"  { $arch = "x86_64" }
+    "ARM64"  { $arch = "aarch64" }
+    default  {
+        Write-Host "Unsupported architecture: $($env:PROCESSOR_ARCHITECTURE)"
+        exit 1
+    }
 }
 
-$os = "windows"
-$extension = "tar.gz"
-
-$assetName = "zig-wol-$arch-$os.$extension"
+$assetName = "zig-wol-$arch-windows.tar.gz"
 $downloadUrl = "https://github.com/$repo/releases/download/$latestTag/$assetName"
 
 $homeDir = [System.Environment]::GetFolderPath("UserProfile")

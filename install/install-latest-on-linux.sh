@@ -7,19 +7,13 @@ latestRelease=$(curl -s $apiUrl)
 latestTag=$(echo $latestRelease | grep -oP '"tag_name": "\K[^"]+')
 
 arch=$(uname -m)
-if [ "$arch" == "x86_64" ]; then
-    arch="x86_64"
-elif [ "$arch" == "aarch64" ]; then
-    arch="aarch64"
-else
-    echo "Unsupported architecture: $arch"
-    exit 1
-fi
+case "$arch" in
+    aarch64) arch="aarch64" ;;
+    x86_64) arch="x86_64" ;;
+    *) echo "Unsupported architecture: $arch"; exit 1 ;;
+esac
 
-os="linux"
-extension="tar.gz"
-
-assetName="zig-wol-$arch-$os.$extension"
+assetName="zig-wol-$arch-linux.tar.gz"
 downloadUrl="https://github.com/$repo/releases/download/$latestTag/$assetName"
 
 homeDir=$HOME
