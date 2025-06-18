@@ -4,17 +4,30 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{}); // e.g.: std.builtin.OptimizeMode.ReleaseSmall
 
-    const exe = b.addExecutable(.{
-        .name = "zig-wol",
+    // Create the executable module and wol module
+    const exe_module = b.createModule(.{
         .root_source_file = b.path("src/main.zig"),
         .target = target,
         .optimize = optimize,
     });
+    // note: wol module is created so that other projects can use it with zig fetch and @import("wol").
+    const wol_module = b.addModule("wol", .{
+        .root_source_file = b.path("src/wol.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
 
-    // Dependencies from build.zig.zon
-    exe.root_module.addImport("clap", b.dependency("clap", .{}).module("clap"));
+    // Add dependencies from local modules
+    exe_module.addImport("wol", wol_module);
 
-    // Install the executable
+    // Add dependencies from third-party libs (see build.zig.zon)
+    exe_module.addImport("clap", b.dependency("clap", .{}).module("clap"));
+
+    // Create, add and install the executable
+    const exe = b.addExecutable(.{
+        .root_module = exe_module,
+        .name = "zig-wol",
+    });
     b.installArtifact(exe);
 
     // Generate documentation step (run this with "zig build docs")

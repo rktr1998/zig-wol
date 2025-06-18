@@ -1,7 +1,7 @@
 .{
     .name = .zigwol,
     .fingerprint = 0xde77714c68dfba75,
-    .version = "0.4.1",
+    .version = "0.4.2",
     .minimum_zig_version = "0.14.0",
     .dependencies = .{
         .clap = .{
@@ -13,5 +13,6 @@
         "build.zig",
         "build.zig.zon",
         "src",
+        "LICENSE",
     },
 }
