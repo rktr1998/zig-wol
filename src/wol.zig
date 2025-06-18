@@ -63,7 +63,7 @@ test "is_mac_valid" {
     try std.testing.expectEqual(is_mac_valid(""), false); // Empty string
 }
 
-fn generate_magic_packet(mac_bytes: [6]u8) [102]u8 {
+pub fn generate_magic_packet(mac_bytes: [6]u8) [102]u8 {
     var packet: [102]u8 = undefined;
     @memset(packet[0..6], 0xFF); // First 6 bytes are 0xFF
     for (0..16) |i| {
