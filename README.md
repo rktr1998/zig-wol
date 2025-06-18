@@ -17,13 +17,14 @@ Wake a machine on your LAN by broadcasting the magic packet: replace `<MAC>` wit
 zig-wol wake <MAC>
 ```
 
-Create an alias for a MAC address.
+Create an alias for a MAC address, list all aliases or remove one.
 
 ```sh
-zig-wol list                 # display all aliases
-zig-wol alias <NAME> <MAC>   # create an alias
-zig-wol wake <NAME>          # wake a machine by alias
+zig-wol alias <NAME> <MAC> --address <ADDR>   # create an alias and set its broadcast
+zig-wol wake <NAME>                           # wake a machine by alias
 ```
+
+The optional `--address` (e.g. 192.168.0.255) is important if there are multiple network interfaces. Setting the correct subnet broadcast address ensures the OS chooses the right network interface. If not specified, the default broadcast 255.255.255.255 address is used.
 
 Run `zig-wol help` to display all subcommands and `zig-wol <subcommand> --help` to display specific options.
 
