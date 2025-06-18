@@ -30,6 +30,7 @@ jobs:
           )
           mkdir -p artifacts
 
+          rm -r -f /home/runner/.cache/zig
           zig fetch --save git+https://github.com/Hejsil/zig-clap
           
           for tgt in "${targets[@]}"; do
