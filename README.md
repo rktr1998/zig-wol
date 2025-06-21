@@ -69,6 +69,27 @@ zig build
 
 This command compiles the source code and places the executable in the `zig-out/bin/` directory.
 
+## As a library
+
+It is possible to use the wake-on-lan functionality of this project as a library.
+
+```sh
+zig fetch --save=wol git+https://github.com/rktr1998/zig-wol
+```
+
+Add the wol module from the fetched dependency in build.zig.
+
+```c
+const wol_module = b.dependency("wol", .{}).module("wol");
+exe.root_module.addImport("wol", wol_module); // e.g. add it to an exe
+```
+
+Import the module in Zig.
+
+```c
+const wol = @import("wol");
+```
+
 ## License
 
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
