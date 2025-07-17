@@ -16,7 +16,7 @@ jobs:
       - name: Set up Zig compiler
         uses: mlugg/setup-zig@v2
         with:
-          version: '0.14.0'
+          version: '0.14.1'
 
       - name: Build for all targets
         run: |
@@ -34,7 +34,7 @@ jobs:
           zig fetch --save git+https://github.com/Hejsil/zig-clap
           
           for tgt in "${targets[@]}"; do
-            zig build -Dtarget="$tgt" --release=small --prefix "zig-out/$tgt"
+            zig build -Dtarget="$tgt" --release=safe --prefix "zig-out/$tgt"
             binpath="zig-out/$tgt/bin"
             tar -czf "artifacts/zig-wol-${tgt}.tar.gz" -C "$binpath" .
           done

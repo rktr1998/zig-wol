@@ -48,11 +48,19 @@ bash <(curl -sSL https://raw.githubusercontent.com/rktr1998/zig-wol/refs/heads/m
 
 This command downloads the latest release for your processor architecture and **installs** the program at `/home/$USER/.zig-wol`. To **uninstall** zig-wol, simply delete this folder.
 
+### Install latest on MacOS
+
+```sh
+bash <(curl -sSL https://raw.githubusercontent.com/rktr1998/zig-wol/refs/heads/main/install/install-latest-on-macos.sh)
+```
+
+This command downloads the latest release for your processor architecture and **installs** the program at `/home/$USER/.zig-wol`. To **uninstall** zig-wol, simply delete this folder.
+
 ## Build
 
 ### Prerequisites
 
-- [Zig (v0.14.0)](https://ziglang.org/download/) installed on your system.
+- [Zig (v0.14.1)](https://ziglang.org/download/) installed on your system.
 
 ### 1. Clone the Repository
 

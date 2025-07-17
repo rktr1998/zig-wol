@@ -4,7 +4,7 @@ repo="rktr1998/zig-wol"
 apiUrl="https://api.github.com/repos/$repo/releases/latest"
 
 latestRelease=$(curl -s $apiUrl)
-latestTag=$(echo "$latestRelease" | grep -oP '"tag_name": "\K[^"]+')
+latestTag=$(echo "$latestRelease" | grep '"tag_name"' | sed -E 's/.*"tag_name": "([^"]+)".*/\1/')
 
 arch=$(uname -m)
 case "$arch" in
