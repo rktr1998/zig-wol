@@ -41,9 +41,11 @@ pub fn build(b: *std.Build) void {
 
     // Create a test step (run this with "zig build test") to run all tests in src/tests.zig
     const tests = b.addTest(.{
-        .root_source_file = b.path("src/tests.zig"),
-        .target = target,
-        .optimize = optimize,
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/tests.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
     });
 
     const run_tests = b.addRunArtifact(tests);
