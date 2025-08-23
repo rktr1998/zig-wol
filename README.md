@@ -9,25 +9,6 @@ Written in the [Zig](https://github.com/ziglang/zig) programming language, [zig-
 - Send WOL magic packets to wake up devices on the LAN.
 - Cross-platform support for windows, macos and linux for both x86_64 and aarch64 architectures.
 
-## Usage
-
-Wake a machine on your LAN by broadcasting the magic packet: replace `<MAC>` with the target MAC address (e.g. `9A-63-A1-FF-8B-4C`).
-
-```sh
-zig-wol wake <MAC>
-```
-
-Create an alias for a MAC address, list all aliases or remove one.
-
-```sh
-zig-wol alias <NAME> <MAC> --address <ADDR>   # create an alias and set its broadcast
-zig-wol wake <NAME>                           # wake a machine by alias
-```
-
-The optional `--address` (e.g. 192.168.0.255) is important if there are multiple network interfaces. Setting the correct subnet broadcast address ensures the OS chooses the right network interface. If not specified, the default broadcast 255.255.255.255 address is used.
-
-Run `zig-wol help` to display all subcommands and `zig-wol <subcommand> --help` to display specific options.
-
 ## Installation
 
 Pre-compiled binaries of [zig-wol](https://github.com/rktr1998/zig-wol) are distributed with [releases](https://github.com/rktr1998/zig-wol/releases): download the binary for your architecture and operating system and you are good to go!
@@ -55,6 +36,25 @@ bash <(curl -sSL https://raw.githubusercontent.com/rktr1998/zig-wol/refs/heads/m
 ```
 
 This command downloads the latest release for your processor architecture and **installs** the program at `/home/$USER/.zig-wol`. To **uninstall** zig-wol, simply delete this folder.
+
+## Usage
+
+Wake a machine on your LAN by broadcasting the magic packet: replace `<MAC>` with the target MAC address (e.g. `9A-63-A1-FF-8B-4C`).
+
+```sh
+zig-wol wake <MAC>
+```
+
+Create an alias for a MAC address, list all aliases or remove one.
+
+```sh
+zig-wol alias <NAME> <MAC> --address <ADDR>   # create an alias and set its broadcast
+zig-wol wake <NAME>                           # wake a machine by alias
+```
+
+The optional `--address` (e.g. 192.168.0.255) is important if there are multiple network interfaces. Setting the correct subnet broadcast address ensures the OS chooses the right network interface. If not specified, the default broadcast 255.255.255.255 address is used.
+
+Run `zig-wol help` to display all subcommands and `zig-wol <subcommand> --help` to display specific options.
 
 ## Build
 
