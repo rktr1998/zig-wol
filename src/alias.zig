@@ -11,9 +11,9 @@ pub const Alias = struct {
 
 /// Return the example alias list. Caller must free the memory after use.
 fn getExampleAliasList(allocator: std.mem.Allocator) ArrayList(Alias) {
-    var alias_list = ArrayList(Alias).init(allocator);
+    var alias_list = ArrayList(Alias).initCapacity(allocator, 0) catch @panic("OutOfMemory");
 
-    alias_list.append(Alias{
+    alias_list.append(allocator, Alias{
         .name = "alias-example",
         .mac = "01-01-01-ab-ab-ab",
         .address = "255.255.255.255",
@@ -74,9 +74,9 @@ pub fn readAliasFile(allocator: std.mem.Allocator) ArrayList(Alias) {
     };
 
     // Create an ArrayList from the parsed alias slice
-    var alias_list = ArrayList(Alias).init(allocator);
+    var alias_list = ArrayList(Alias).initCapacity(allocator, 0) catch @panic("OutOfMemory");
     for (alias_list_slice) |alias| {
-        alias_list.append(alias) catch |err| {
+        alias_list.append(allocator, alias) catch |err| {
             std.debug.print("Error appending alias: {}\n", .{err});
             unreachable;
         };
@@ -93,7 +93,11 @@ pub fn writeAliasFile(alias_list: ArrayList(Alias)) void {
         unreachable;
     };
     defer file.close();
-    std.zon.stringify.serialize(alias_list.items, .{}, file.writer()) catch |err| {
+
+    var buf: [4096]u8 = undefined;
+    var io_writer = file.writer(&buf).interface;
+
+    std.zon.stringify.serialize(alias_list.items, .{}, &io_writer) catch |err| {
         std.debug.print("Error serializing alias file: {}\n", .{err});
         unreachable;
     };
