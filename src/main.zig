@@ -149,7 +149,7 @@ fn subCommandStatus(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main
         .diagnostic = &diag,
         .allocator = gpa,
     }) catch |err| {
-        diag.report(std.io.getStdErr().writer(), err) catch {};
+        try diag.reportToFile(.stderr(), err);
         return err;
     };
     defer res.deinit();
@@ -160,8 +160,8 @@ fn subCommandStatus(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main
         return std.debug.print("{s}", .{help_message});
 
     const page_allocator = std.heap.page_allocator;
-    const alias_list = alias.readAliasFile(page_allocator);
-    defer alias_list.deinit();
+    var alias_list = alias.readAliasFile(page_allocator);
+    defer alias_list.deinit(page_allocator);
 
     // Store thread handles
     var threads = try page_allocator.alloc(std.Thread, alias_list.items.len);
@@ -355,7 +355,7 @@ fn subCommandRelay(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_
         .diagnostic = &diag,
         .allocator = gpa,
     }) catch |err| {
-        diag.report(std.io.getStdErr().writer(), err) catch {};
+        try diag.reportToFile(.stderr(), err);
         return err;
     };
     defer res.deinit();

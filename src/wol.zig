@@ -204,7 +204,7 @@ pub fn relay_begin(listen_addr: std.net.Address, relay_addr: std.net.Address) !v
     try posix.setsockopt(socket, posix.SOL.SOCKET, posix.SO.BROADCAST, std.mem.asBytes(&option_value));
 
     posix.bind(socket, &listen_addr.any, listen_addr.getOsSockLen()) catch |err| {
-        std.debug.print("Failed to bind socket to address {}: {}\n", .{ listen_addr.in, err });
+        std.debug.print("Failed to bind socket to address {f}: {}\n", .{ listen_addr.in, err });
         return err;
     };
 
@@ -212,9 +212,9 @@ pub fn relay_begin(listen_addr: std.net.Address, relay_addr: std.net.Address) !v
     var buf: [102]u8 = undefined;
 
     while (true) {
-        std.time.sleep(1_000_000_000);
+        std.Thread.sleep(1_000_000_000);
 
-        std.debug.print("Listening for WOL packets on {}, relaying to {}...\n", .{ listen_addr.in, relay_addr.in });
+        std.debug.print("Listening for WOL packets on {f}, relaying to {f}...\n", .{ listen_addr.in, relay_addr.in });
 
         const received_bytes_count = posix.recv(socket, &buf, 0) catch |err| {
             std.debug.print("Failed to receive data: {}\n", .{err});
@@ -233,11 +233,11 @@ pub fn relay_begin(listen_addr: std.net.Address, relay_addr: std.net.Address) !v
         }
 
         // Print the received packet data
-        std.debug.print("Received WOL packet on {}.\nPacket data: {x}.\n\n", .{ listen_addr.in, buf[0..received_bytes_count] });
+        std.debug.print("Received WOL packet on {f}.\nPacket data: {x}.\n\n", .{ listen_addr.in, buf[0..received_bytes_count] });
 
         // Relay the received magic packet to the specified address and port
         _ = posix.sendto(socket, &buf, 0, &relay_addr.any, relay_addr.getOsSockLen()) catch |err| {
-            // std.debug.print("Failed to send to {s}.\n", .{actual_address.in});
+            // std.debug.print("Failed to send to {f}.\n", .{actual_address.in});
             return err;
         };
     }
