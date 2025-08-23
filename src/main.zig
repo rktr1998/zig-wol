@@ -4,7 +4,7 @@ const wol = @import("wol"); // local module
 const alias = @import("alias.zig"); // local src file
 const ping = @import("ping.zig");
 
-const version: std.SemanticVersion = .{ .major = 0, .minor = 5, .patch = 2 };
+const version: std.SemanticVersion = .{ .major = 0, .minor = 6, .patch = 0 };
 
 // Implement the subcommands parser
 const SubCommands = enum {
@@ -46,7 +46,7 @@ pub fn main() !void {
         .allocator = gpa,
         .terminating_positional = 0,
     }) catch |err| {
-        diag.report(std.io.getStdErr().writer(), err) catch {};
+        try diag.reportToFile(.stderr(), err);
         return subCommandHelp();
     };
     defer res.deinit();
@@ -88,7 +88,7 @@ fn subCommandWake(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_a
         .diagnostic = &diag,
         .allocator = gpa,
     }) catch |err| {
-        diag.report(std.io.getStdErr().writer(), err) catch {};
+        try diag.reportToFile(.stderr(), err);
         return err;
     };
     defer res.deinit();
@@ -101,8 +101,9 @@ fn subCommandWake(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_a
     // if --all is provided, wake up all devices in the alias list
     if (res.args.all != 0) {
         const page_allocator = std.heap.page_allocator;
-        const alias_list = alias.readAliasFile(page_allocator);
-        defer alias_list.deinit();
+
+        var alias_list = alias.readAliasFile(page_allocator);
+        defer alias_list.deinit(page_allocator);
 
         for (alias_list.items) |item| {
             try wol.broadcast_magic_packet_ipv4(item.mac, item.port, item.address, null);
@@ -119,8 +120,9 @@ fn subCommandWake(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_a
     } else {
         // if it's not a MAC maybe it's an alias name
         const page_allocator = std.heap.page_allocator;
-        const alias_list = alias.readAliasFile(page_allocator);
-        defer alias_list.deinit();
+
+        var alias_list = alias.readAliasFile(page_allocator);
+        alias_list.deinit(page_allocator);
 
         for (alias_list.items) |item| {
             if (item.name.len > 0 and std.mem.eql(u8, item.name, mac)) {
@@ -147,7 +149,7 @@ fn subCommandStatus(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main
         .diagnostic = &diag,
         .allocator = gpa,
     }) catch |err| {
-        diag.report(std.io.getStdErr().writer(), err) catch {};
+        try diag.reportToFile(.stderr(), err);
         return err;
     };
     defer res.deinit();
@@ -158,8 +160,8 @@ fn subCommandStatus(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main
         return std.debug.print("{s}", .{help_message});
 
     const page_allocator = std.heap.page_allocator;
-    const alias_list = alias.readAliasFile(page_allocator);
-    defer alias_list.deinit();
+    var alias_list = alias.readAliasFile(page_allocator);
+    defer alias_list.deinit(page_allocator);
 
     // Store thread handles
     var threads = try page_allocator.alloc(std.Thread, alias_list.items.len);
@@ -200,7 +202,7 @@ fn subCommandAlias(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_
         .diagnostic = &diag,
         .allocator = gpa,
     }) catch |err| {
-        diag.report(std.io.getStdErr().writer(), err) catch {};
+        try diag.reportToFile(.stderr(), err);
         return err;
     };
     defer res.deinit();
@@ -219,7 +221,7 @@ fn subCommandAlias(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_
     // get config from file, add alias and save config to file
     const page_allocator = std.heap.page_allocator;
     var alias_list = alias.readAliasFile(page_allocator);
-    defer alias_list.deinit();
+    defer alias_list.deinit(page_allocator);
 
     // check if alias already exists
     for (alias_list.items) |item| {
@@ -229,7 +231,7 @@ fn subCommandAlias(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_
     }
 
     // append new alias
-    alias_list.append(alias.Alias{
+    alias_list.append(page_allocator, alias.Alias{
         .name = name,
         .mac = mac,
         .address = address,
@@ -259,7 +261,7 @@ fn subCommandRemove(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main
         .diagnostic = &diag,
         .allocator = gpa,
     }) catch |err| {
-        diag.report(std.io.getStdErr().writer(), err) catch {};
+        try diag.reportToFile(.stderr(), err);
         return err;
     };
     defer res.deinit();
@@ -271,11 +273,11 @@ fn subCommandRemove(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main
         const page_allocator = std.heap.page_allocator;
         var alias_list = alias.readAliasFile(page_allocator);
         const alias_count = alias_list.items.len;
-        defer alias_list.deinit();
+        defer alias_list.deinit(page_allocator);
 
-        alias_list.clearAndFree();
+        alias_list.clearAndFree(page_allocator);
         alias.writeAliasFile(alias_list);
-        std.debug.print("Removed {} aliases.\n", .{alias_count});
+        std.debug.print("Removed {d} aliases.\n", .{alias_count});
         return;
     }
 
@@ -288,7 +290,7 @@ fn subCommandRemove(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main
     // finally, if a name is provided, remove the alias
     const page_allocator = std.heap.page_allocator;
     var alias_list = alias.readAliasFile(page_allocator);
-    defer alias_list.deinit();
+    defer alias_list.deinit(page_allocator);
 
     for (alias_list.items, 0..) |item, idx| {
         if (std.mem.eql(u8, item.name, name)) {
@@ -315,18 +317,17 @@ fn subCommandList(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_a
         .diagnostic = &diag,
         .allocator = gpa,
     }) catch |err| {
-        try diag.report(std.io.getStdErr().writer(), err);
+        std.debug.print("{}", .{err});
         return err;
     };
     defer res.deinit();
 
     const page_allocator = std.heap.page_allocator;
-    const alias_list = alias.readAliasFile(page_allocator);
-    defer alias_list.deinit();
+    var alias_list = alias.readAliasFile(page_allocator);
+    defer alias_list.deinit(page_allocator);
 
-    const stdout = std.io.getStdOut().writer();
     for (alias_list.items) |item| {
-        try stdout.print("Name: {s}\nMAC: {s}\nAddress: {s}\nPort: {d}\nDescription: {s}\n\n", .{
+        std.debug.print("Name: {s}\nMAC: {s}\nAddress: {s}\nPort: {d}\nDescription: {s}\n\n", .{
             item.name,
             item.mac,
             item.address,
@@ -354,7 +355,7 @@ fn subCommandRelay(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_
         .diagnostic = &diag,
         .allocator = gpa,
     }) catch |err| {
-        diag.report(std.io.getStdErr().writer(), err) catch {};
+        try diag.reportToFile(.stderr(), err);
         return err;
     };
     defer res.deinit();
@@ -401,8 +402,7 @@ fn subCommandRelay(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_
 }
 
 fn subCommandVersion() !void {
-    const stdout = std.io.getStdOut().writer();
-    try stdout.print("{}.{}.{}\n", .{ version.major, version.minor, version.patch });
+    std.debug.print("{}.{}.{}\n", .{ version.major, version.minor, version.patch });
 }
 
 fn subCommandHelp() !void {
@@ -421,6 +421,5 @@ fn subCommandHelp() !void {
         \\Run 'zig-wol <command> --help' for more information on a specific command.
         \\
     ;
-    const stdout = std.io.getStdOut().writer();
-    try stdout.print("{s}\n", .{message});
+    std.debug.print("{s}\n", .{message});
 }

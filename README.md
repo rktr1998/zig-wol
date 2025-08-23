@@ -60,7 +60,7 @@ Run `zig-wol help` to display all subcommands and `zig-wol <subcommand> --help` 
 
 ### Prerequisites
 
-- [Zig (v0.14.1)](https://ziglang.org/download/) installed on your system.
+- [Zig (v0.15.1)](https://ziglang.org/download/) installed on your system.
 
 ### 1. Clone the Repository
 

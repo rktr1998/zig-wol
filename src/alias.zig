@@ -11,9 +11,9 @@ pub const Alias = struct {
 
 /// Return the example alias list. Caller must free the memory after use.
 fn getExampleAliasList(allocator: std.mem.Allocator) ArrayList(Alias) {
-    var alias_list = ArrayList(Alias).init(allocator);
+    var alias_list = ArrayList(Alias).initCapacity(allocator, 0) catch @panic("OutOfMemory");
 
-    alias_list.append(Alias{
+    alias_list.append(allocator, Alias{
         .name = "alias-example",
         .mac = "01-01-01-ab-ab-ab",
         .address = "255.255.255.255",
@@ -27,7 +27,7 @@ fn getExampleAliasList(allocator: std.mem.Allocator) ArrayList(Alias) {
 test "example alias list (ArrayList)" {
     const allocator = std.heap.page_allocator;
     var alias_list = getExampleAliasList(allocator);
-    defer alias_list.deinit();
+    defer alias_list.deinit(allocator);
 
     try std.testing.expectEqual(alias_list.items.len, 1);
     try std.testing.expectEqual(alias_list.items[0].name, "alias-example");
@@ -74,9 +74,9 @@ pub fn readAliasFile(allocator: std.mem.Allocator) ArrayList(Alias) {
     };
 
     // Create an ArrayList from the parsed alias slice
-    var alias_list = ArrayList(Alias).init(allocator);
+    var alias_list = ArrayList(Alias).initCapacity(allocator, 0) catch @panic("OutOfMemory");
     for (alias_list_slice) |alias| {
-        alias_list.append(alias) catch |err| {
+        alias_list.append(allocator, alias) catch |err| {
             std.debug.print("Error appending alias: {}\n", .{err});
             unreachable;
         };
@@ -93,7 +93,25 @@ pub fn writeAliasFile(alias_list: ArrayList(Alias)) void {
         unreachable;
     };
     defer file.close();
-    std.zon.stringify.serialize(alias_list.items, .{}, file.writer()) catch |err| {
+
+    //// Working example with stdout io writer
+    // var stdout_buffer: [1024]u8 = undefined;
+    // var stdout_writer = std.fs.File.stdout().writer(&stdout_buffer);
+    // const stdout = &stdout_writer.interface;
+    // defer stdout.flush() catch @panic("stdout flush failed");
+
+    // std.zon.stringify.serialize(alias_list.items, .{}, stdout) catch |err| {
+    //     std.debug.print("Error serializing alias file: {}\n", .{err});
+    //     unreachable;
+    // };
+
+    // Serialise to a file io writer
+    var buf: [1024]u8 = undefined;
+    var writer = std.fs.File.writer(file, &buf);
+    const writer_interface = &writer.interface;
+    defer writer_interface.flush() catch @panic("stdout flush failed");
+
+    std.zon.stringify.serialize(alias_list.items, .{}, writer_interface) catch |err| {
         std.debug.print("Error serializing alias file: {}\n", .{err});
         unreachable;
     };
