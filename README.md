@@ -7,7 +7,7 @@ Written in the [Zig](https://github.com/ziglang/zig) programming language, [zig-
 ## Features
 
 - Send WOL magic packets to wake up devices on the LAN.
-- Cross-platform support for Windows and Linux.
+- Cross-platform support for windows, macos and linux for both x86_64 and aarch64 architectures.
 
 ## Usage
 
