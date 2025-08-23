@@ -1,11 +1,13 @@
 const std = @import("std");
 const posix = std.posix;
 
-/// Parse a MAC address string (with separators '-' or ':') into an array of 6 bytes.
+/// Parse a MAC address string into an array of 6 bytes.
+/// Expects length 17 and separator either "-" or ":" (e.g. 01-23-45-AB-CD-EF)
 pub fn parse_mac(mac: []const u8) ![6]u8 {
     if (mac.len != 17) return error.InvalidMacAddress;
 
-    const sep: u8 = mac[2]; // Expect either ':' or '-'
+    // Expect either ':' or '-'
+    const sep: u8 = mac[2];
     if (sep != ':' and sep != '-') return error.InvalidMacAddress;
 
     // Ensure all separators are the same
@@ -48,6 +50,7 @@ test "parse_mac invalid cases" {
     try std.testing.expectError(error.InvalidMacAddress, parse_mac("")); // Empty string
 }
 
+/// Expects length 17 and separator either "-" or ":" (e.g. 01-23-45-AB-CD-EF)
 pub fn is_mac_valid(mac: []const u8) bool {
     _ = parse_mac(mac) catch return false;
     return true;
@@ -80,7 +83,6 @@ pub fn broadcast_magic_packet_ipv4(mac: []const u8, port: ?u16, address: ?[]cons
     const actual_address = try std.net.Address.parseIp(address orelse "255.255.255.255", actual_port);
     const actual_count = count orelse 3; // how man times the magic packet is sent
 
-    // Parse MAC address to bytes and create magic packet: 6 bytes of 0xFF followed by MAC address repeated 16 times
     const mac_bytes = parse_mac(mac) catch |err| {
         std.debug.print("Invalid MAC address: {}\n", .{err});
         return err;
@@ -196,7 +198,6 @@ test "is_magic_packet (invalid - broken repetition)" {
 
 /// Never returns. Listens for magic packets and relays them to the specified address and port.
 pub fn relay_begin(listen_addr: std.net.Address, relay_addr: std.net.Address) !void {
-    // Create a UDP socket to listen for wake-on-lan packets, enable broadcast and bind
     const socket = try posix.socket(posix.AF.INET, posix.SOCK.DGRAM, posix.IPPROTO.UDP);
     defer posix.close(socket);
 
@@ -208,7 +209,6 @@ pub fn relay_begin(listen_addr: std.net.Address, relay_addr: std.net.Address) !v
         return err;
     };
 
-    // Buffer for receiving packets
     var buf: [102]u8 = undefined;
 
     while (true) {
@@ -226,18 +226,16 @@ pub fn relay_begin(listen_addr: std.net.Address, relay_addr: std.net.Address) !v
             continue; // ignore packets that are not 102 bytes
         }
 
-        // Verify the packet is a valid magic packet using is_magic_packet
         if (!is_magic_packet(buf)) {
             std.debug.print("Received packet ignored: invalid WOL packet.\n", .{});
             continue;
         }
 
-        // Print the received packet data
         std.debug.print("Received WOL packet on {f}.\nPacket data: {x}.\n\n", .{ listen_addr.in, buf[0..received_bytes_count] });
 
         // Relay the received magic packet to the specified address and port
         _ = posix.sendto(socket, &buf, 0, &relay_addr.any, relay_addr.getOsSockLen()) catch |err| {
-            // std.debug.print("Failed to send to {f}.\n", .{actual_address.in});
+            std.debug.print("Failed to relay to {f}.\n", .{relay_addr.in});
             return err;
         };
     }

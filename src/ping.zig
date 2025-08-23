@@ -17,8 +17,6 @@ pub fn ping_with_os_command(destination: []const u8) !void {
     defer allocator.free(result.stderr);
     defer allocator.free(result.stdout);
 
-    // std.debug.print("Alias {s} ping exit code = {d}\n", .{ destination, result.term.Exited });
-
     const ansi_color_red = "\x1b[31m";
     const ansi_color_green = "\x1b[32m";
     const ansi_color_reset = "\x1b[0m";

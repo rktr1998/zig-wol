@@ -27,10 +27,7 @@ const main_params = clap.parseParamsComptime(
 );
 const MainArgs = clap.ResultEx(clap.Help, &main_params, main_parsers);
 
-/// Entry point of zig-wol.exe
 pub fn main() !void {
-
-    // Initialize allocator for the command line arguments parsing
     var gpa_state = std.heap.GeneralPurposeAllocator(.{}){};
     const gpa = gpa_state.allocator();
     defer _ = gpa_state.deinit();
@@ -51,12 +48,10 @@ pub fn main() !void {
     };
     defer res.deinit();
 
-    // If no subcommand is provided, print the subcommand help message and exit.
     if (res.positionals.len == 0) {
         return subCommandHelp();
     }
 
-    // If a subcommand is provided, parse it and execute the corresponding subcommand handler
     const subcommand = res.positionals[0] orelse return subCommandHelp();
     switch (subcommand) {
         .wake => try subCommandWake(gpa, &iter, res),
@@ -71,9 +66,8 @@ pub fn main() !void {
 }
 
 fn subCommandWake(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_args: MainArgs) !void {
-    _ = main_args; // parent args not used
+    _ = main_args;
 
-    // The parameters for the subcommand.
     const params = comptime clap.parseParamsComptime(
         \\<str>             MAC address of the device to wake up, or an existing alias name.
         \\--help            Display this help and exit.
@@ -82,7 +76,6 @@ fn subCommandWake(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_a
         \\--all             Wake up all devices in the alias list.
     );
 
-    // Here we pass the partially parsed argument iterator.
     var diag = clap.Diagnostic{};
     var res = clap.parseEx(clap.Help, &params, clap.parsers.default, iter, .{
         .diagnostic = &diag,
@@ -115,10 +108,8 @@ fn subCommandWake(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_a
     const mac = res.positionals[0] orelse return std.debug.print("{s}", .{help_message});
 
     if (wol.is_mac_valid(mac)) {
-        // if arg is a valid MAC
         return try wol.broadcast_magic_packet_ipv4(mac, res.args.port, res.args.address, null);
     } else {
-        // if it's not a MAC maybe it's an alias name
         const page_allocator = std.heap.page_allocator;
 
         var alias_list = alias.readAliasFile(page_allocator);
@@ -129,21 +120,19 @@ fn subCommandWake(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_a
                 return try wol.broadcast_magic_packet_ipv4(item.mac, item.port, item.address, null);
             }
         }
-        // if it's not an alias name either
+
         std.debug.print("Provided argument {s} is neither a valid MAC nor an existing alias name.\n", .{mac});
     }
 }
 
 fn subCommandStatus(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_args: MainArgs) !void {
-    _ = main_args; // parent args not used
+    _ = main_args;
 
-    // The parameters for the subcommand.
     const params = comptime clap.parseParamsComptime(
         \\--live            Ping continuously.
         \\--help            Display this help and exit.
     );
 
-    // Here we pass the partially parsed argument iterator.
     var diag = clap.Diagnostic{};
     var res = clap.parseEx(clap.Help, &params, clap.parsers.default, iter, .{
         .diagnostic = &diag,
@@ -163,30 +152,24 @@ fn subCommandStatus(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main
     var alias_list = alias.readAliasFile(page_allocator);
     defer alias_list.deinit(page_allocator);
 
-    // Store thread handles
     var threads = try page_allocator.alloc(std.Thread, alias_list.items.len);
     defer page_allocator.free(threads);
-
-    //TODO: This will be much nicer once async comes out with 0.16.0 so I'm likely waiting to try async out when it's time
-    //also this is an incredibily bad sketch as well, the ping results order output is totally random.
-    //Results must be collected properly to be displayed to the user in a useful manner
 
     if (res.args.live != 0) {
         std.debug.print("Pinging continuously not yet implemented\n", .{});
     }
 
+    //TODO: implement this with async as soon as it comes out and print results ordered instead of randomly...
     for (alias_list.items, 0..) |item, i| {
         threads[i] = try std.Thread.spawn(.{}, ping.ping_with_os_command, .{item.address});
     }
 
-    // Wait for all
     for (threads) |*t| t.join();
 }
 
 fn subCommandAlias(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_args: MainArgs) !void {
-    _ = main_args; // parent args not used
+    _ = main_args;
 
-    // The parameters for the subcommand.
     const params = comptime clap.parseParamsComptime(
         \\<str>                 Name for the new alias.
         \\<str>                 MAC for the new alias.
@@ -196,7 +179,6 @@ fn subCommandAlias(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_
         \\-h, --help
     );
 
-    // Here we pass the partially parsed argument iterator.
     var diag = clap.Diagnostic{};
     var res = clap.parseEx(clap.Help, &params, clap.parsers.default, iter, .{
         .diagnostic = &diag,
@@ -213,7 +195,6 @@ fn subCommandAlias(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_
     const port = res.args.port orelse 9;
     const description = res.args.description orelse "";
 
-    // ensure mac is valid
     _ = wol.parse_mac(mac) catch |err| {
         return std.debug.print("Invalid MAC address: {}\n", .{err});
     };
@@ -230,7 +211,6 @@ fn subCommandAlias(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_
         }
     }
 
-    // append new alias
     alias_list.append(page_allocator, alias.Alias{
         .name = name,
         .mac = mac,
@@ -246,16 +226,14 @@ fn subCommandAlias(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_
 }
 
 fn subCommandRemove(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_args: MainArgs) !void {
-    _ = main_args; // parent args not used
+    _ = main_args;
 
-    // The parameters for the subcommand.
     const params = comptime clap.parseParamsComptime(
         \\<str>?       Name of the alias to be removed.
         \\--all        Remove all aliases.
         \\-h, --help
     );
 
-    // Here we pass the partially parsed argument iterator.
     var diag = clap.Diagnostic{};
     var res = clap.parseEx(clap.Help, &params, clap.parsers.default, iter, .{
         .diagnostic = &diag,
@@ -304,14 +282,12 @@ fn subCommandRemove(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main
 }
 
 fn subCommandList(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_args: MainArgs) !void {
-    _ = main_args; // parent args not used
+    _ = main_args;
 
-    // The parameters for the subcommand.
     const params = comptime clap.parseParamsComptime(
         \\-h, --help
     );
 
-    // Here we pass the partially parsed argument iterator.
     var diag = clap.Diagnostic{};
     var res = clap.parseEx(clap.Help, &params, clap.parsers.default, iter, .{
         .diagnostic = &diag,
@@ -338,9 +314,8 @@ fn subCommandList(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_a
 }
 
 fn subCommandRelay(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_args: MainArgs) !void {
-    _ = main_args; // parent args not used
+    _ = main_args;
 
-    // The parameters for the subcommand.
     const params = comptime clap.parseParamsComptime(
         \\--help                  Display this help and exit.
         \\--listen_address <str>  The address to listen on for wake-on-lan packets, for example coming from a router.
@@ -349,7 +324,6 @@ fn subCommandRelay(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_
         \\--relay_port <u16>      Default 9, generally irrelevant since wake-on-lan works with OSI layer 2 (Data Link).
     );
 
-    // Pass the partially parsed argument iterator.
     var diag = clap.Diagnostic{};
     var res = clap.parseEx(clap.Help, &params, clap.parsers.default, iter, .{
         .diagnostic = &diag,
@@ -395,7 +369,6 @@ fn subCommandRelay(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_
         return std.debug.print("{s}", .{help_message});
     };
 
-    // Beging relaying wol packets: this will never return
     wol.relay_begin(listen_addr, relay_addr) catch |err| {
         return std.debug.print("Failed to start relay: {}\n", .{err});
     };

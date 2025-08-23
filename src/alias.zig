@@ -40,7 +40,6 @@ pub fn readAliasFile(allocator: std.mem.Allocator) ArrayList(Alias) {
     const file_path = getAliasFilePath(allocator);
     defer allocator.free(file_path);
 
-    // Check if the alias file exists and if not create the default alias file
     if (!aliasFileExists()) {
         std.debug.print("Alias list file does not exist, creating the default file...\n", .{});
         const example_alias_list = getExampleAliasList(allocator);
@@ -48,7 +47,6 @@ pub fn readAliasFile(allocator: std.mem.Allocator) ArrayList(Alias) {
         return example_alias_list;
     }
 
-    // Open the alias file
     const file = std.fs.openFileAbsolute(file_path, .{ .mode = .read_only }) catch |err| {
         std.debug.print("Error opening alias file: {}\n", .{err});
         unreachable;
@@ -94,18 +92,6 @@ pub fn writeAliasFile(alias_list: ArrayList(Alias)) void {
     };
     defer file.close();
 
-    //// Working example with stdout io writer
-    // var stdout_buffer: [1024]u8 = undefined;
-    // var stdout_writer = std.fs.File.stdout().writer(&stdout_buffer);
-    // const stdout = &stdout_writer.interface;
-    // defer stdout.flush() catch @panic("stdout flush failed");
-
-    // std.zon.stringify.serialize(alias_list.items, .{}, stdout) catch |err| {
-    //     std.debug.print("Error serializing alias file: {}\n", .{err});
-    //     unreachable;
-    // };
-
-    // Serialise to a file io writer
     var buf: [1024]u8 = undefined;
     var writer = std.fs.File.writer(file, &buf);
     const writer_interface = &writer.interface;
@@ -120,7 +106,6 @@ pub fn writeAliasFile(alias_list: ArrayList(Alias)) void {
 /// Computes the absolute path to the alias file in the same directory as the executable.
 /// Caller must free the memory after use.
 pub fn getAliasFilePath(allocator: std.mem.Allocator) []const u8 {
-    // get the self executable directory path
     var exe_dir_path_buffer: [std.fs.max_path_bytes]u8 = undefined;
     const exe_dir_path = std.fs.selfExeDirPath(&exe_dir_path_buffer) catch |err| {
         std.debug.print("Error getting self executable directory path: {}\n", .{err});
@@ -140,19 +125,15 @@ pub fn getAliasFilePath(allocator: std.mem.Allocator) []const u8 {
 /// Check if the zon alias file exists in the same directory as the executable.
 /// Internally allocates and frees to compute the path.
 pub fn aliasFileExists() bool {
-    // get the self executable directory path
     const page_allocator = std.heap.page_allocator;
     const file_path = getAliasFilePath(page_allocator);
     defer page_allocator.free(file_path);
 
-    // check if the alias file exists
     _ = std.fs.accessAbsolute(file_path, .{ .mode = .read_only }) catch {
         return false;
     };
     return true;
 }
-
-// some testing...
 
 test "check alias file exists in exe dir" {
     std.debug.print("alias_file_exists = {}\n", .{aliasFileExists()});
