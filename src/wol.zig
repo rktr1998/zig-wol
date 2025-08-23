@@ -105,5 +105,5 @@ pub fn broadcast_magic_packet_ipv4(mac: []const u8, port: ?u16, address: ?[]cons
         };
     }
 
-    std.debug.print("Sent {d} magic packet to target MAC {s} via {any}/udp.\n", .{ actual_count, mac, actual_address });
+    std.debug.print("Sent {d} magic packet to target MAC {s} via {f}/udp.\n", .{ actual_count, mac, actual_address.in });
 }
