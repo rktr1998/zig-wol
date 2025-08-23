@@ -2,12 +2,14 @@ const std = @import("std");
 const clap = @import("clap"); // third-party lib for cmd line args parsing
 const wol = @import("wol"); // local module
 const alias = @import("alias.zig"); // local src file
+const ping = @import("ping.zig");
 
-const version = "0.5.1"; // should be read from build.zig.zon at comptime
+const version: std.SemanticVersion = .{ .major = 0, .minor = 5, .patch = 2 };
 
 // Implement the subcommands parser
 const SubCommands = enum {
     wake,
+    status,
     alias,
     remove,
     list,
@@ -58,6 +60,7 @@ pub fn main() !void {
     const subcommand = res.positionals[0] orelse return subCommandHelp();
     switch (subcommand) {
         .wake => try subCommandWake(gpa, &iter, res),
+        .status => try subCommandStatus(gpa, &iter, res),
         .alias => try subCommandAlias(gpa, &iter, res),
         .remove => try subCommandRemove(gpa, &iter, res),
         .list => try subCommandList(gpa, &iter, res),
@@ -98,8 +101,9 @@ fn subCommandWake(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_a
     // if --all is provided, wake up all devices in the alias list
     if (res.args.all != 0) {
         const page_allocator = std.heap.page_allocator;
-        var alias_list = alias.readAliasFile(page_allocator);
+        const alias_list = alias.readAliasFile(page_allocator);
         defer alias_list.deinit();
+
         for (alias_list.items) |item| {
             try wol.broadcast_magic_packet_ipv4(item.mac, item.port, item.address, null);
             std.Thread.sleep(100 * std.time.ns_per_ms); // sleep 100ms
@@ -117,6 +121,7 @@ fn subCommandWake(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_a
         const page_allocator = std.heap.page_allocator;
         const alias_list = alias.readAliasFile(page_allocator);
         defer alias_list.deinit();
+
         for (alias_list.items) |item| {
             if (item.name.len > 0 and std.mem.eql(u8, item.name, mac)) {
                 return try wol.broadcast_magic_packet_ipv4(item.mac, item.port, item.address, null);
@@ -125,6 +130,55 @@ fn subCommandWake(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_a
         // if it's not an alias name either
         std.debug.print("Provided argument {s} is neither a valid MAC nor an existing alias name.\n", .{mac});
     }
+}
+
+fn subCommandStatus(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_args: MainArgs) !void {
+    _ = main_args; // parent args not used
+
+    // The parameters for the subcommand.
+    const params = comptime clap.parseParamsComptime(
+        \\--live            Ping continuously.
+        \\--help            Display this help and exit.
+    );
+
+    // Here we pass the partially parsed argument iterator.
+    var diag = clap.Diagnostic{};
+    var res = clap.parseEx(clap.Help, &params, clap.parsers.default, iter, .{
+        .diagnostic = &diag,
+        .allocator = gpa,
+    }) catch |err| {
+        diag.report(std.io.getStdErr().writer(), err) catch {};
+        return err;
+    };
+    defer res.deinit();
+
+    const help_message = "Ping all aliases to check their status. Usage: zig-wol status [--live] [--help]\n";
+
+    if (res.args.help != 0)
+        return std.debug.print("{s}", .{help_message});
+
+    const page_allocator = std.heap.page_allocator;
+    const alias_list = alias.readAliasFile(page_allocator);
+    defer alias_list.deinit();
+
+    // Store thread handles
+    var threads = try page_allocator.alloc(std.Thread, alias_list.items.len);
+    defer page_allocator.free(threads);
+
+    //TODO: This will be much nicer once async comes out with 0.16.0 so I'm likely waiting to try async out when it's time
+    //also this is an incredibily bad sketch as well, the ping results order output is totally random.
+    //Results must be collected properly to be displayed to the user in a useful manner
+
+    if (res.args.live != 0) {
+        std.debug.print("Pinging continuously not yet implemented\n", .{});
+    }
+
+    for (alias_list.items, 0..) |item, i| {
+        threads[i] = try std.Thread.spawn(.{}, ping.ping_with_os_command, .{item.address});
+    }
+
+    // Wait for all
+    for (threads) |*t| t.join();
 }
 
 fn subCommandAlias(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_args: MainArgs) !void {
@@ -218,6 +272,7 @@ fn subCommandRemove(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main
         var alias_list = alias.readAliasFile(page_allocator);
         const alias_count = alias_list.items.len;
         defer alias_list.deinit();
+
         alias_list.clearAndFree();
         alias.writeAliasFile(alias_list);
         std.debug.print("Removed {} aliases.\n", .{alias_count});
@@ -347,7 +402,7 @@ fn subCommandRelay(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_
 
 fn subCommandVersion() !void {
     const stdout = std.io.getStdOut().writer();
-    try stdout.print("{s}\n", .{version});
+    try stdout.print("{}.{}.{}\n", .{ version.major, version.minor, version.patch });
 }
 
 fn subCommandHelp() !void {
@@ -355,6 +410,7 @@ fn subCommandHelp() !void {
         \\Usage: zig-wol <command> [options]
         \\Commands:
         \\  wake      Wake up a device by its MAC address.
+        \\  status    Ping all aliases.
         \\  alias     Manage aliases for MAC addresses.
         \\  remove    Remove an alias by its name.
         \\  list      List all aliases.
