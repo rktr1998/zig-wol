@@ -2,15 +2,18 @@ const std = @import("std");
 const clap = @import("clap"); // third-party lib for cmd line args parsing
 const wol = @import("wol"); // local module
 const alias = @import("alias.zig"); // local src file
+const ping = @import("ping.zig");
 
-const version: std.SemanticVersion = .{ .major = 0, .minor = 7, .patch = 0 };
+const version: std.SemanticVersion = .{ .major = 0, .minor = 6, .patch = 0 };
 
 // Implement the subcommands parser
 const SubCommands = enum {
     wake,
+    status,
     alias,
     remove,
     list,
+    relay,
     version,
     help,
 };
@@ -57,9 +60,11 @@ pub fn main() !void {
     const subcommand = res.positionals[0] orelse return subCommandHelp();
     switch (subcommand) {
         .wake => try subCommandWake(gpa, &iter, res),
+        .status => try subCommandStatus(gpa, &iter, res),
         .alias => try subCommandAlias(gpa, &iter, res),
         .remove => try subCommandRemove(gpa, &iter, res),
         .list => try subCommandList(gpa, &iter, res),
+        .relay => try subCommandRelay(gpa, &iter, res),
         .version => try subCommandVersion(),
         .help => try subCommandHelp(),
     }
@@ -96,6 +101,7 @@ fn subCommandWake(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_a
     // if --all is provided, wake up all devices in the alias list
     if (res.args.all != 0) {
         const page_allocator = std.heap.page_allocator;
+
         var alias_list = alias.readAliasFile(page_allocator);
         defer alias_list.deinit(page_allocator);
 
@@ -114,6 +120,7 @@ fn subCommandWake(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_a
     } else {
         // if it's not a MAC maybe it's an alias name
         const page_allocator = std.heap.page_allocator;
+
         var alias_list = alias.readAliasFile(page_allocator);
         alias_list.deinit(page_allocator);
 
@@ -125,6 +132,55 @@ fn subCommandWake(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_a
         // if it's not an alias name either
         std.debug.print("Provided argument {s} is neither a valid MAC nor an existing alias name.\n", .{mac});
     }
+}
+
+fn subCommandStatus(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_args: MainArgs) !void {
+    _ = main_args; // parent args not used
+
+    // The parameters for the subcommand.
+    const params = comptime clap.parseParamsComptime(
+        \\--live            Ping continuously.
+        \\--help            Display this help and exit.
+    );
+
+    // Here we pass the partially parsed argument iterator.
+    var diag = clap.Diagnostic{};
+    var res = clap.parseEx(clap.Help, &params, clap.parsers.default, iter, .{
+        .diagnostic = &diag,
+        .allocator = gpa,
+    }) catch |err| {
+        diag.report(std.io.getStdErr().writer(), err) catch {};
+        return err;
+    };
+    defer res.deinit();
+
+    const help_message = "Ping all aliases to check their status. Usage: zig-wol status [--live] [--help]\n";
+
+    if (res.args.help != 0)
+        return std.debug.print("{s}", .{help_message});
+
+    const page_allocator = std.heap.page_allocator;
+    const alias_list = alias.readAliasFile(page_allocator);
+    defer alias_list.deinit();
+
+    // Store thread handles
+    var threads = try page_allocator.alloc(std.Thread, alias_list.items.len);
+    defer page_allocator.free(threads);
+
+    //TODO: This will be much nicer once async comes out with 0.16.0 so I'm likely waiting to try async out when it's time
+    //also this is an incredibily bad sketch as well, the ping results order output is totally random.
+    //Results must be collected properly to be displayed to the user in a useful manner
+
+    if (res.args.live != 0) {
+        std.debug.print("Pinging continuously not yet implemented\n", .{});
+    }
+
+    for (alias_list.items, 0..) |item, i| {
+        threads[i] = try std.Thread.spawn(.{}, ping.ping_with_os_command, .{item.address});
+    }
+
+    // Wait for all
+    for (threads) |*t| t.join();
 }
 
 fn subCommandAlias(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_args: MainArgs) !void {
@@ -281,6 +337,70 @@ fn subCommandList(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_a
     }
 }
 
+fn subCommandRelay(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_args: MainArgs) !void {
+    _ = main_args; // parent args not used
+
+    // The parameters for the subcommand.
+    const params = comptime clap.parseParamsComptime(
+        \\--help                  Display this help and exit.
+        \\--listen_address <str>  The address to listen on for wake-on-lan packets, for example coming from a router.
+        \\--listen_port <u16>     Default 9, the port to listen on for wake-on-lan packets.
+        \\--relay_address <str>   The address to relay the packets to, normally the subnet broadcast e.g. 192.168.1.255.
+        \\--relay_port <u16>      Default 9, generally irrelevant since wake-on-lan works with OSI layer 2 (Data Link).
+    );
+
+    // Pass the partially parsed argument iterator.
+    var diag = clap.Diagnostic{};
+    var res = clap.parseEx(clap.Help, &params, clap.parsers.default, iter, .{
+        .diagnostic = &diag,
+        .allocator = gpa,
+    }) catch |err| {
+        diag.report(std.io.getStdErr().writer(), err) catch {};
+        return err;
+    };
+    defer res.deinit();
+
+    const help_message =
+        \\Relay mode: Listen for Wake-on-LAN packets and forward them to another address.
+        \\Usage: zig-wol relay --listen_address <ADDR> --relay_address <ADDR> [--listen_port <PORT>] [--relay_port <PORT>] [--help]
+        \\
+        \\Options:
+        \\  --listen_address <ADDR>   The address to listen on for incoming WOL packets (required).
+        \\  --listen_port <PORT>      The port to listen on (default: 9).
+        \\  --relay_address <ADDR>    The address to relay WOL packets to (required, usually a broadcast address).
+        \\  --relay_port <PORT>       The port to relay packets to (default: 9).
+        \\  --help                    Display this help and exit.
+        \\
+        \\Example:
+        \\  zig-wol relay --listen_address 192.168.0.10 --listen_port 9999 --relay_address 192.168.0.255 --relay_port 9
+        \\
+    ;
+
+    if (res.args.help != 0)
+        return std.debug.print("{s}", .{help_message});
+
+    const listen_addr = std.net.Address.resolveIp(res.args.listen_address orelse {
+        std.debug.print("A value for the parameter --listen_address must be specified.\n\n", .{});
+        return std.debug.print("{s}", .{help_message});
+    }, res.args.listen_port orelse 9) catch |err| {
+        std.debug.print("Invalid listen address: {}\n\n", .{err});
+        return std.debug.print("{s}", .{help_message});
+    };
+
+    const relay_addr = std.net.Address.resolveIp(res.args.relay_address orelse {
+        std.debug.print("A value for the parameter --relay_address must be specified.\n\n", .{});
+        return std.debug.print("{s}", .{help_message});
+    }, res.args.relay_port orelse 9) catch |err| {
+        std.debug.print("Invalid relay address: {}\n\n", .{err});
+        return std.debug.print("{s}", .{help_message});
+    };
+
+    // Beging relaying wol packets: this will never return
+    wol.relay_begin(listen_addr, relay_addr) catch |err| {
+        return std.debug.print("Failed to start relay: {}\n", .{err});
+    };
+}
+
 fn subCommandVersion() !void {
     std.debug.print("{}.{}.{}\n", .{ version.major, version.minor, version.patch });
 }
@@ -290,13 +410,16 @@ fn subCommandHelp() !void {
         \\Usage: zig-wol <command> [options]
         \\Commands:
         \\  wake      Wake up a device by its MAC address.
+        \\  status    Ping all aliases.
         \\  alias     Manage aliases for MAC addresses.
         \\  remove    Remove an alias by its name.
         \\  list      List all aliases.
+        \\  relay     Start listening for wol packets and relay them.
         \\  version   Display the version of the program.
         \\  help      Display help for the program or a specific command.
         \\
         \\Run 'zig-wol <command> --help' for more information on a specific command.
+        \\
     ;
     std.debug.print("{s}\n", .{message});
 }

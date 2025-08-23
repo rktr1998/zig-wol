@@ -1,4 +1,5 @@
 const std = @import("std");
+const posix = std.posix;
 
 /// Parse a MAC address string (with separators '-' or ':') into an array of 6 bytes.
 pub fn parse_mac(mac: []const u8) ![6]u8 {
@@ -87,23 +88,157 @@ pub fn broadcast_magic_packet_ipv4(mac: []const u8, port: ?u16, address: ?[]cons
     const magic_packet = generate_magic_packet(mac_bytes);
 
     // Create a UDP socket
-    const socket = try std.posix.socket(std.posix.AF.INET, std.posix.SOCK.DGRAM, std.posix.IPPROTO.UDP);
-    defer std.posix.close(socket);
+    const socket = try posix.socket(posix.AF.INET, posix.SOCK.DGRAM, posix.IPPROTO.UDP);
+    defer posix.close(socket);
 
     // Enable socket broadcast (setting SO_BROADCAST to anything othen than empty string enables broadcast)
     const option_value: u32 = 1;
-    std.posix.setsockopt(socket, std.posix.SOL.SOCKET, std.posix.SO.BROADCAST, std.mem.asBytes(&option_value)) catch |err| {
+    posix.setsockopt(socket, posix.SOL.SOCKET, posix.SO.BROADCAST, std.mem.asBytes(&option_value)) catch |err| {
         std.debug.print("Failed to set socket option to enable broadcast: {}\n", .{err});
         return err;
     };
 
     // Send the magic packet
     for (0..actual_count) |_| {
-        _ = std.posix.sendto(socket, &magic_packet, 0, &actual_address.any, actual_address.getOsSockLen()) catch |err| {
+        _ = posix.sendto(socket, &magic_packet, 0, &actual_address.any, actual_address.getOsSockLen()) catch |err| {
             // std.debug.print("Failed to send to {s}.\n", .{actual_address.in});
             return err;
         };
     }
 
     std.debug.print("Sent {d} magic packet to target MAC {s} via {f}/udp.\n", .{ actual_count, mac, actual_address.in });
+}
+
+/// Checks if a sequence is a valid magic packet: 6 bytes of 0xFF followed by the MAC address bytes repeated 16 times.
+pub fn is_magic_packet(sequence: [102]u8) bool {
+    // Check if the first 6 bytes are all 0xFF
+    if (std.mem.eql(u8, sequence[0..6], &[_]u8{ 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF }) == false) {
+        return false;
+    }
+
+    // Check if the next 96 bytes are a MAC address repeated 16 times
+    for (0..15) |j| {
+        if (std.mem.eql(u8, sequence[6..12], sequence[12 + j * 6 .. 18 + j * 6]) == false) {
+            return false;
+        }
+    }
+    return true;
+}
+
+test "is_magic_packet (valid)" {
+    const valid_packet: [102]u8 = [_]u8{
+        0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+        0x01, 0x02, 0x03, 0x04, 0x05, 0x06,
+        0x01, 0x02, 0x03, 0x04, 0x05, 0x06,
+        0x01, 0x02, 0x03, 0x04, 0x05, 0x06,
+        0x01, 0x02, 0x03, 0x04, 0x05, 0x06,
+        0x01, 0x02, 0x03, 0x04, 0x05, 0x06,
+        0x01, 0x02, 0x03, 0x04, 0x05, 0x06,
+        0x01, 0x02, 0x03, 0x04, 0x05, 0x06,
+        0x01, 0x02, 0x03, 0x04, 0x05, 0x06,
+        0x01, 0x02, 0x03, 0x04, 0x05, 0x06,
+        0x01, 0x02, 0x03, 0x04, 0x05, 0x06,
+        0x01, 0x02, 0x03, 0x04, 0x05, 0x06,
+        0x01, 0x02, 0x03, 0x04, 0x05, 0x06,
+        0x01, 0x02, 0x03, 0x04, 0x05, 0x06,
+        0x01, 0x02, 0x03, 0x04, 0x05, 0x06,
+        0x01, 0x02, 0x03, 0x04, 0x05, 0x06,
+        0x01, 0x02, 0x03, 0x04, 0x05, 0x06,
+    };
+    try std.testing.expect(is_magic_packet(valid_packet));
+}
+
+test "is_magic_packet (invalid - broken header)" {
+    const invalid_packet_broken_header: [102]u8 = [_]u8{
+        0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xAA, // broken header
+        0x01, 0x02, 0x03, 0x04, 0x05, 0x06,
+        0x01, 0x02, 0x03, 0x04, 0x05, 0x06,
+        0x01, 0x02, 0x03, 0x04, 0x05, 0x06,
+        0x01, 0x02, 0x03, 0x04, 0x05, 0x06,
+        0x01, 0x02, 0x03, 0x04, 0x05, 0x06,
+        0x01, 0x02, 0x03, 0x04, 0x05, 0x06,
+        0x01, 0x02, 0x03, 0x04, 0x05, 0x06,
+        0x01, 0x02, 0x03, 0x04, 0x05, 0x06,
+        0x01, 0x02, 0x03, 0x04, 0x05, 0x06,
+        0x01, 0x02, 0x03, 0x04, 0x05, 0x06,
+        0x01, 0x02, 0x03, 0x04, 0x05, 0x06,
+        0x01, 0x02, 0x03, 0x04, 0x05, 0x06,
+        0x01, 0x02, 0x03, 0x04, 0x05, 0x06,
+        0x01, 0x02, 0x03, 0x04, 0x05, 0x06,
+        0x01, 0x02, 0x03, 0x04, 0x05, 0x06,
+        0x01, 0x02, 0x03, 0x04, 0x05, 0x06,
+    };
+    try std.testing.expect(!is_magic_packet(invalid_packet_broken_header));
+}
+
+test "is_magic_packet (invalid - broken repetition)" {
+    const invalid_packet_broken_repetition: [102]u8 = [_]u8{
+        0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+        0x01, 0x02, 0x03, 0x04, 0x05, 0x06,
+        0x01, 0x02, 0x03, 0x04, 0x05, 0x06,
+        0x01, 0x02, 0x03, 0x04, 0x05, 0x06,
+        0x01, 0x02, 0x03, 0x04, 0x05, 0x06,
+        0x01, 0x02, 0x03, 0x04, 0x05, 0x06,
+        0x01, 0x02, 0x03, 0x04, 0x05, 0x06,
+        0x01, 0x02, 0x03, 0x04, 0x05, 0x06,
+        0x01, 0x02, 0x03, 0x04, 0x05, 0x06,
+        0x01, 0x02, 0x03, 0x04, 0x05, 0x06,
+        0x01, 0x02, 0x03, 0x04, 0x05, 0x06,
+        0x01, 0x02, 0x03, 0x04, 0x05, 0x06,
+        0x01, 0x02, 0x03, 0x04, 0x05, 0x06,
+        0x01, 0x02, 0x03, 0x04, 0x05, 0x06,
+        0x01, 0x02, 0x03, 0x04, 0x05, 0x06,
+        0x01, 0x02, 0x03, 0x04, 0x05, 0x06,
+        0x01, 0x02, 0x03, 0x04, 0x05, 0xFF, // broken repetition
+    };
+    try std.testing.expect(!is_magic_packet(invalid_packet_broken_repetition));
+}
+
+/// Never returns. Listens for magic packets and relays them to the specified address and port.
+pub fn relay_begin(listen_addr: std.net.Address, relay_addr: std.net.Address) !void {
+    // Create a UDP socket to listen for wake-on-lan packets, enable broadcast and bind
+    const socket = try posix.socket(posix.AF.INET, posix.SOCK.DGRAM, posix.IPPROTO.UDP);
+    defer posix.close(socket);
+
+    const option_value: u32 = 1;
+    try posix.setsockopt(socket, posix.SOL.SOCKET, posix.SO.BROADCAST, std.mem.asBytes(&option_value));
+
+    posix.bind(socket, &listen_addr.any, listen_addr.getOsSockLen()) catch |err| {
+        std.debug.print("Failed to bind socket to address {}: {}\n", .{ listen_addr.in, err });
+        return err;
+    };
+
+    // Buffer for receiving packets
+    var buf: [102]u8 = undefined;
+
+    while (true) {
+        std.time.sleep(1_000_000_000);
+
+        std.debug.print("Listening for WOL packets on {}, relaying to {}...\n", .{ listen_addr.in, relay_addr.in });
+
+        const received_bytes_count = posix.recv(socket, &buf, 0) catch |err| {
+            std.debug.print("Failed to receive data: {}\n", .{err});
+            continue; // in case of recv error (e.g. error.MessageTooBig when size > 102 bytes), ignore and continue listening
+        };
+
+        if (received_bytes_count != 102) {
+            std.debug.print("Received packet ignored: unexpected packet size of {d} bytes, expected 102 bytes.\n", .{received_bytes_count});
+            continue; // ignore packets that are not 102 bytes
+        }
+
+        // Verify the packet is a valid magic packet using is_magic_packet
+        if (!is_magic_packet(buf)) {
+            std.debug.print("Received packet ignored: invalid WOL packet.\n", .{});
+            continue;
+        }
+
+        // Print the received packet data
+        std.debug.print("Received WOL packet on {}.\nPacket data: {x}.\n\n", .{ listen_addr.in, buf[0..received_bytes_count] });
+
+        // Relay the received magic packet to the specified address and port
+        _ = posix.sendto(socket, &buf, 0, &relay_addr.any, relay_addr.getOsSockLen()) catch |err| {
+            // std.debug.print("Failed to send to {s}.\n", .{actual_address.in});
+            return err;
+        };
+    }
 }
