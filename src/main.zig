@@ -4,7 +4,7 @@ const wol = @import("wol"); // local module
 const alias = @import("alias.zig"); // local src file
 const ping = @import("ping.zig");
 
-const version: std.SemanticVersion = .{ .major = 0, .minor = 6, .patch = 0 };
+const version: std.SemanticVersion = .{ .major = 0, .minor = 5, .patch = 2 };
 
 // Implement the subcommands parser
 const SubCommands = enum {
@@ -163,20 +163,20 @@ fn subCommandStatus(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main
     var threads = try page_allocator.alloc(std.Thread, alias_list.items.len);
     defer page_allocator.free(threads);
 
-    //TODO: this will be much nicer once async comes out with 0.16.0 so I'm likely waiting to try async out when it's time
-    //also this is an incredibily bad sketch as well, the ping results order output is totally random
-    //TODO: results must be collected properly to be displayed to the user in a useful manner
+    //TODO: This will be much nicer once async comes out with 0.16.0 so I'm likely waiting to try async out when it's time
+    //also this is an incredibily bad sketch as well, the ping results order output is totally random.
+    //Results must be collected properly to be displayed to the user in a useful manner
 
-    while (true) {
-        for (alias_list.items, 0..) |item, i| {
-            threads[i] = try std.Thread.spawn(.{}, ping.ping_with_os_command, .{item.address});
-        }
-
-        // Wait for all
-        for (threads) |*t| t.join();
-
-        if (res.args.live == 0) break;
+    if (res.args.live != 0) {
+        std.debug.print("Pinging continuously not yet implemented\n", .{});
     }
+
+    for (alias_list.items, 0..) |item, i| {
+        threads[i] = try std.Thread.spawn(.{}, ping.ping_with_os_command, .{item.address});
+    }
+
+    // Wait for all
+    for (threads) |*t| t.join();
 }
 
 fn subCommandAlias(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_args: MainArgs) !void {
