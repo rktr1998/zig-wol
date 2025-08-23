@@ -13,6 +13,7 @@ const SubCommands = enum {
     alias,
     remove,
     list,
+    relay,
     version,
     help,
 };
@@ -63,6 +64,7 @@ pub fn main() !void {
         .alias => try subCommandAlias(gpa, &iter, res),
         .remove => try subCommandRemove(gpa, &iter, res),
         .list => try subCommandList(gpa, &iter, res),
+        .relay => try subCommandRelay(gpa, &iter, res),
         .version => try subCommandVersion(),
         .help => try subCommandHelp(),
     }
@@ -334,6 +336,70 @@ fn subCommandList(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_a
     }
 }
 
+fn subCommandRelay(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_args: MainArgs) !void {
+    _ = main_args; // parent args not used
+
+    // The parameters for the subcommand.
+    const params = comptime clap.parseParamsComptime(
+        \\--help                  Display this help and exit.
+        \\--listen_address <str>  The address to listen on for wake-on-lan packets, for example coming from a router.
+        \\--listen_port <u16>     Default 9, the port to listen on for wake-on-lan packets.
+        \\--relay_address <str>   The address to relay the packets to, normally the subnet broadcast e.g. 192.168.1.255.
+        \\--relay_port <u16>      Default 9, generally irrelevant since wake-on-lan works with OSI layer 2 (Data Link).
+    );
+
+    // Pass the partially parsed argument iterator.
+    var diag = clap.Diagnostic{};
+    var res = clap.parseEx(clap.Help, &params, clap.parsers.default, iter, .{
+        .diagnostic = &diag,
+        .allocator = gpa,
+    }) catch |err| {
+        diag.report(std.io.getStdErr().writer(), err) catch {};
+        return err;
+    };
+    defer res.deinit();
+
+    const help_message =
+        \\Relay mode: Listen for Wake-on-LAN packets and forward them to another address.
+        \\Usage: zig-wol relay --listen_address <ADDR> --relay_address <ADDR> [--listen_port <PORT>] [--relay_port <PORT>] [--help]
+        \\
+        \\Options:
+        \\  --listen_address <ADDR>   The address to listen on for incoming WOL packets (required).
+        \\  --listen_port <PORT>      The port to listen on (default: 9).
+        \\  --relay_address <ADDR>    The address to relay WOL packets to (required, usually a broadcast address).
+        \\  --relay_port <PORT>       The port to relay packets to (default: 9).
+        \\  --help                    Display this help and exit.
+        \\
+        \\Example:
+        \\  zig-wol relay --listen_address 192.168.0.10 --listen_port 9999 --relay_address 192.168.0.255 --relay_port 9
+        \\
+    ;
+
+    if (res.args.help != 0)
+        return std.debug.print("{s}", .{help_message});
+
+    const listen_addr = std.net.Address.resolveIp(res.args.listen_address orelse {
+        std.debug.print("A value for the parameter --listen_address must be specified.\n\n", .{});
+        return std.debug.print("{s}", .{help_message});
+    }, res.args.listen_port orelse 9) catch |err| {
+        std.debug.print("Invalid listen address: {}\n\n", .{err});
+        return std.debug.print("{s}", .{help_message});
+    };
+
+    const relay_addr = std.net.Address.resolveIp(res.args.relay_address orelse {
+        std.debug.print("A value for the parameter --relay_address must be specified.\n\n", .{});
+        return std.debug.print("{s}", .{help_message});
+    }, res.args.relay_port orelse 9) catch |err| {
+        std.debug.print("Invalid relay address: {}\n\n", .{err});
+        return std.debug.print("{s}", .{help_message});
+    };
+
+    // Beging relaying wol packets: this will never return
+    wol.relay_begin(listen_addr, relay_addr) catch |err| {
+        return std.debug.print("Failed to start relay: {}\n", .{err});
+    };
+}
+
 fn subCommandVersion() !void {
     const stdout = std.io.getStdOut().writer();
     try stdout.print("{}.{}.{}\n", .{ version.major, version.minor, version.patch });
@@ -348,10 +414,12 @@ fn subCommandHelp() !void {
         \\  alias     Manage aliases for MAC addresses.
         \\  remove    Remove an alias by its name.
         \\  list      List all aliases.
+        \\  relay     Start listening for wol packets and relay them.
         \\  version   Display the version of the program.
         \\  help      Display help for the program or a specific command.
         \\
         \\Run 'zig-wol <command> --help' for more information on a specific command.
+        \\
     ;
     const stdout = std.io.getStdOut().writer();
     try stdout.print("{s}\n", .{message});
