@@ -1,12 +1,10 @@
 const std = @import("std");
+const build_zig_zon = @import("build.zig.zon");
 const clap = @import("clap"); // third-party lib for cmd line args parsing
 const wol = @import("wol"); // local module
 const alias = @import("alias.zig"); // local src file
 const ping = @import("ping.zig");
 
-const version: std.SemanticVersion = .{ .major = 0, .minor = 6, .patch = 0 };
-
-// Implement the subcommands parser
 const SubCommands = enum {
     wake,
     status,
@@ -155,6 +153,7 @@ fn subCommandStatus(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main
     var threads = try page_allocator.alloc(std.Thread, alias_list.items.len);
     defer page_allocator.free(threads);
 
+    //TODO: implement --live status by pinging continuously
     if (res.args.live != 0) {
         std.debug.print("Pinging continuously not yet implemented\n", .{});
     }
@@ -375,7 +374,8 @@ fn subCommandRelay(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_
 }
 
 fn subCommandVersion() !void {
-    std.debug.print("{}.{}.{}\n", .{ version.major, version.minor, version.patch });
+    const version = try std.SemanticVersion.parse(build_zig_zon.version);
+    std.debug.print("{f}\n", .{version});
 }
 
 fn subCommandHelp() !void {
