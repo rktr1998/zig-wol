@@ -17,9 +17,14 @@ pub fn ping_with_os_command(destination: []const u8) !void {
     defer allocator.free(result.stderr);
     defer allocator.free(result.stdout);
 
-    const ansi_color_red = "\x1b[31m";
-    const ansi_color_green = "\x1b[32m";
-    const ansi_color_reset = "\x1b[0m";
+    // To use UNICODE on windows we need to set the console code page to UTF-8 (65001)
+    // see https://learn.microsoft.com/en-us/windows/win32/intl/code-page-identifiers
+    if (builtin.target.os.tag == .windows) {
+        _ = std.os.windows.kernel32.SetConsoleOutputCP(65001);
+    }
+
+    const unicode_circle_green = "\u{1F7E2}";
+    const unicode_circle_red = "\u{1F534}";
 
     // On Windows "Destination host unreachable" still returns $LASTEXITCODE = 0
     // therefore we must also check the output to catch this case.
@@ -27,9 +32,9 @@ pub fn ping_with_os_command(destination: []const u8) !void {
         std.mem.indexOf(u8, result.stdout, "unreachable") == null and
         std.mem.indexOf(u8, result.stderr, "unreachable") == null)
     {
-        std.debug.print("{s}ALIVE{s}  {s}\n", .{ ansi_color_green, ansi_color_reset, destination });
+        std.debug.print("{s}  {s}\n", .{ unicode_circle_green, destination });
     } else {
-        std.debug.print("{s}DOWN {s}  {s}\n", .{ ansi_color_red, ansi_color_reset, destination });
+        std.debug.print("{s}  {s}\n", .{ unicode_circle_red, destination });
     }
 
     // std.debug.print("exit code: {}\n", .{result.term.Exited});
