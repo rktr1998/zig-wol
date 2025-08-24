@@ -134,31 +134,3 @@ pub fn aliasFileExists() bool {
     };
     return true;
 }
-
-test "check alias file exists in exe dir" {
-    std.debug.print("alias_file_exists = {}\n", .{aliasFileExists()});
-}
-
-test "list all entries in cwd dir" {
-    var dir = try std.fs.cwd().openDir(".", .{ .iterate = true });
-    defer dir.close();
-    var iterator = dir.iterate();
-    while (try iterator.next()) |entry| {
-        std.debug.print("Entry: {s}\n", .{entry.name});
-    }
-}
-
-test "list all entries in exe dir" {
-    var exe_dir_path_buffer: [std.fs.max_path_bytes]u8 = undefined;
-    const exe_dir_path = std.fs.selfExeDirPath(&exe_dir_path_buffer) catch |err| {
-        std.debug.print("Error getting self executable directory path: {}\n", .{err});
-        return err;
-    };
-    var dir = try std.fs.cwd().openDir(exe_dir_path, .{ .iterate = true });
-    defer dir.close();
-    var iterator = dir.iterate();
-    while (try iterator.next()) |entry| {
-        std.debug.print("Entry: {s}\n", .{entry.name});
-    }
-    std.debug.print("Exe dir path: {s}\n", .{exe_dir_path});
-}
