@@ -160,7 +160,7 @@ fn subCommandStatus(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main
 
     //TODO: implement this with async as soon as it comes out and print results ordered instead of randomly...
     for (alias_list.items, 0..) |item, i| {
-        threads[i] = try std.Thread.spawn(.{}, ping.ping_with_os_command, .{item.broadcast});
+        threads[i] = try std.Thread.spawn(.{}, ping.ping_with_os_command, .{ item.name, item.fqdn });
     }
 
     for (threads) |*t| t.join();
@@ -174,6 +174,7 @@ fn subCommandAlias(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_
         \\<str>                 MAC for the new alias.
         \\--broadcast <str>     IPv4, defaults to 255.255.255.255, setting this may be required in some scenarios.
         \\--port <u16>          UDP port, default 9. Generally irrelevant since wake-on-lan works with OSI layer 2 (Data Link).
+        \\--fqdn <str>          Fully Qualified Domain Name or IP address. Required to ping for displaying the status.
         \\--description <str>   Description for the new alias.
         \\-h, --help
     );
@@ -192,6 +193,7 @@ fn subCommandAlias(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_
     const mac = res.positionals[1] orelse return std.debug.print("Provide a MAC. Usage: zig-wol alias <NAME> <MAC>\n", .{});
     const broadcast = res.args.broadcast orelse "255.255.255.255";
     const port = res.args.port orelse 9;
+    const fqdn = res.args.fqdn orelse "";
     const description = res.args.description orelse "";
 
     _ = wol.parse_mac(mac) catch |err| {
@@ -215,6 +217,7 @@ fn subCommandAlias(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_
         .mac = mac,
         .broadcast = broadcast,
         .port = port,
+        .fqdn = fqdn,
         .description = description,
     }) catch |err| {
         return std.debug.print("Failed to add alias: {}\n", .{err});
@@ -302,11 +305,12 @@ fn subCommandList(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_a
     defer alias_list.deinit(page_allocator);
 
     for (alias_list.items) |item| {
-        std.debug.print("Name: {s}\nMAC: {s}\nBroadcast: {s}\nPort: {d}\nDescription: {s}\n\n", .{
+        std.debug.print("Name: {s}\nMAC: {s}\nBroadcast: {s}\nPort: {d}\nFQDN: {s}\nDescription: {s}\n\n", .{
             item.name,
             item.mac,
             item.broadcast,
             item.port,
+            item.fqdn,
             item.description,
         });
     }

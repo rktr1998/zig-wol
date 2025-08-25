@@ -2,12 +2,12 @@ const std = @import("std");
 const builtin = @import("builtin");
 
 /// Pings a machine using the system's ping command, returns true if the destination replies.
-pub fn ping_with_os_command(destination: []const u8) !void {
+pub fn ping_with_os_command(alias_name: []const u8, alias_fqdn: []const u8) !void {
     const allocator = std.heap.page_allocator;
 
     const args = switch (builtin.target.os.tag) {
-        .linux, .macos => &[_][]const u8{ "ping", "-c", "1", "-W", "1", destination },
-        .windows => &[_][]const u8{ "ping", "-n", "1", "-w", "1000", destination },
+        .linux, .macos => &[_][]const u8{ "ping", "-c", "1", "-W", "1", alias_fqdn },
+        .windows => &[_][]const u8{ "ping", "-n", "1", "-w", "1000", alias_fqdn },
         else => @compileError("Unsupported OS"),
     };
     const result = try std.process.Child.run(.{
@@ -32,9 +32,9 @@ pub fn ping_with_os_command(destination: []const u8) !void {
         std.mem.indexOf(u8, result.stdout, "unreachable") == null and
         std.mem.indexOf(u8, result.stderr, "unreachable") == null)
     {
-        std.debug.print("{s}  {s}\n", .{ unicode_circle_green, destination });
+        std.debug.print("{s}  {s}\n", .{ unicode_circle_green, alias_name });
     } else {
-        std.debug.print("{s}  {s}\n", .{ unicode_circle_red, destination });
+        std.debug.print("{s}  {s}\n", .{ unicode_circle_red, alias_name });
     }
 
     // std.debug.print("exit code: {}\n", .{result.term.Exited});

@@ -6,6 +6,7 @@ pub const Alias = struct {
     mac: []const u8,
     broadcast: []const u8,
     port: u16,
+    fqdn: []const u8,
     description: []const u8,
 };
 
@@ -18,6 +19,7 @@ fn getExampleAliasList(allocator: std.mem.Allocator) ArrayList(Alias) {
         .mac = "01-01-01-ab-ab-ab",
         .broadcast = "255.255.255.255",
         .port = 9,
+        .fqdn = "alias-example.local",
         .description = "Alias example description.",
     }) catch unreachable;
 
