@@ -11,6 +11,7 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
         .link_libc = true,
     });
+
     // note: wol module is created so that other projects can use it with zig fetch and @import("wol").
     const wol_module = b.addModule("wol", .{
         .root_source_file = b.path("src/wol.zig"),
@@ -24,13 +25,22 @@ pub fn build(b: *std.Build) void {
     // Add dependencies from third-party libs (see build.zig.zon)
     exe_module.addImport("clap", b.dependency("clap", .{}).module("clap"));
 
+    // Create and import build.zig.zon module, this allows to use .version in main.zig
+    exe_module.addImport("build.zig.zon", b.createModule(.{
+        .root_source_file = b.path("build.zig.zon"),
+        .target = target,
+        .optimize = optimize,
+    }));
+
     // Create, add and install the executable
     const exe = b.addExecutable(.{
         .root_module = exe_module,
         .name = "zig-wol",
     });
+
     b.installArtifact(exe);
 
+    // ------------------------------ DOCS ------------------------------
     // Generate documentation step (run this with "zig build docs")
     const install_docs = b.addInstallDirectory(.{
         .source_dir = exe.getEmittedDocs(),
@@ -40,6 +50,7 @@ pub fn build(b: *std.Build) void {
     const docs_step = b.step("docs", "Install docs into zig-out/docs");
     docs_step.dependOn(&install_docs.step);
 
+    // ------------------------------ TEST ------------------------------
     // Create a test step (run this with "zig build test") to run all tests in src/tests.zig
     const tests = b.addTest(.{
         .root_module = b.createModule(.{

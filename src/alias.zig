@@ -4,8 +4,9 @@ const ArrayList = std.ArrayList;
 pub const Alias = struct {
     name: []const u8,
     mac: []const u8,
-    address: []const u8,
+    broadcast: []const u8,
     port: u16,
+    fqdn: []const u8,
     description: []const u8,
 };
 
@@ -16,8 +17,9 @@ fn getExampleAliasList(allocator: std.mem.Allocator) ArrayList(Alias) {
     alias_list.append(allocator, Alias{
         .name = "alias-example",
         .mac = "01-01-01-ab-ab-ab",
-        .address = "255.255.255.255",
+        .broadcast = "255.255.255.255",
         .port = 9,
+        .fqdn = "alias-example.local",
         .description = "Alias example description.",
     }) catch unreachable;
 
@@ -133,32 +135,4 @@ pub fn aliasFileExists() bool {
         return false;
     };
     return true;
-}
-
-test "check alias file exists in exe dir" {
-    std.debug.print("alias_file_exists = {}\n", .{aliasFileExists()});
-}
-
-test "list all entries in cwd dir" {
-    var dir = try std.fs.cwd().openDir(".", .{ .iterate = true });
-    defer dir.close();
-    var iterator = dir.iterate();
-    while (try iterator.next()) |entry| {
-        std.debug.print("Entry: {s}\n", .{entry.name});
-    }
-}
-
-test "list all entries in exe dir" {
-    var exe_dir_path_buffer: [std.fs.max_path_bytes]u8 = undefined;
-    const exe_dir_path = std.fs.selfExeDirPath(&exe_dir_path_buffer) catch |err| {
-        std.debug.print("Error getting self executable directory path: {}\n", .{err});
-        return err;
-    };
-    var dir = try std.fs.cwd().openDir(exe_dir_path, .{ .iterate = true });
-    defer dir.close();
-    var iterator = dir.iterate();
-    while (try iterator.next()) |entry| {
-        std.debug.print("Entry: {s}\n", .{entry.name});
-    }
-    std.debug.print("Exe dir path: {s}\n", .{exe_dir_path});
 }

@@ -39,20 +39,30 @@ This command downloads the latest release for your processor architecture and **
 
 ## Usage
 
-Wake a machine on your LAN by broadcasting the magic packet: replace `<MAC>` with the target MAC address (e.g. `9A-63-A1-FF-8B-4C`).
+Wake a machine on your LAN by broadcasting the magic packet: replace `<MAC>` with the target MAC (e.g. `9A-63-A1-FF-8B-4C`).
 
 ```sh
 zig-wol wake <MAC>
 ```
 
-Create an alias for a MAC address, list all aliases or remove one.
+Create an alias for a MAC, list all aliases or remove one.
 
 ```sh
-zig-wol alias <NAME> <MAC> --address <ADDR>   # create an alias and set its broadcast
-zig-wol wake <NAME>                           # wake a machine by alias
+zig-wol alias <NAME> <MAC> --broadcast <ADDR>   # create an alias and set its broadcast
+zig-wol wake <NAME>                             # wake a machine by alias
 ```
 
-The optional `--address` (e.g. 192.168.0.255) is important if there are multiple network interfaces. Setting the correct subnet broadcast address ensures the OS chooses the right network interface. If not specified, the default broadcast 255.255.255.255 address is used.
+The optional `--broadcast` (e.g. 192.168.0.255) is important if there are multiple network interfaces. Setting the correct subnet broadcast address ensures the OS chooses the right network interface. If not specified, 255.255.255.255 is used.
+
+Use `zig-wol status` to ping all machines by their FQDN (if defined on alias creation) and display the status.
+
+```sh
+🟢  office-server
+🔴  workstation-A
+🟢  video-server
+🟢  workstation-B
+🔴  coffee-machine
+```
 
 Run `zig-wol help` to display all subcommands and `zig-wol <subcommand> --help` to display specific options.
 
