@@ -77,10 +77,10 @@ pub fn generate_magic_packet(mac_bytes: [6]u8) [102]u8 {
 }
 
 /// Broadcasts a magic packet to wake up a device with the specified MAC address.
-pub fn broadcast_magic_packet_ipv4(mac: []const u8, port: ?u16, address: ?[]const u8, count: ?u8) !void {
+pub fn broadcast_magic_packet_ipv4(mac: []const u8, port: ?u16, broadcast: ?[]const u8, count: ?u8) !void {
     // Defaults
     const actual_port = port orelse 9;
-    const actual_address = try std.net.Address.parseIp(address orelse "255.255.255.255", actual_port);
+    const actual_broadcast = try std.net.Address.parseIp(broadcast orelse "255.255.255.255", actual_port);
     const actual_count = count orelse 3; // how man times the magic packet is sent
 
     const mac_bytes = parse_mac(mac) catch |err| {
@@ -102,13 +102,13 @@ pub fn broadcast_magic_packet_ipv4(mac: []const u8, port: ?u16, address: ?[]cons
 
     // Send the magic packet
     for (0..actual_count) |_| {
-        _ = posix.sendto(socket, &magic_packet, 0, &actual_address.any, actual_address.getOsSockLen()) catch |err| {
-            // std.debug.print("Failed to send to {s}.\n", .{actual_address.in});
+        _ = posix.sendto(socket, &magic_packet, 0, &actual_broadcast.any, actual_broadcast.getOsSockLen()) catch |err| {
+            // std.debug.print("Failed to send to {s}.\n", .{actual_broadcast.in});
             return err;
         };
     }
 
-    std.debug.print("Sent {d} magic packet to target MAC {s} via {f}/udp.\n", .{ actual_count, mac, actual_address.in });
+    std.debug.print("Sent {d} magic packet to target MAC {s} via {f}/udp.\n", .{ actual_count, mac, actual_broadcast.in });
 }
 
 /// Checks if a sequence is a valid magic packet: 6 bytes of 0xFF followed by the MAC address bytes repeated 16 times.
@@ -205,7 +205,7 @@ pub fn relay_begin(listen_addr: std.net.Address, relay_addr: std.net.Address) !v
     try posix.setsockopt(socket, posix.SOL.SOCKET, posix.SO.BROADCAST, std.mem.asBytes(&option_value));
 
     posix.bind(socket, &listen_addr.any, listen_addr.getOsSockLen()) catch |err| {
-        std.debug.print("Failed to bind socket to address {f}: {}\n", .{ listen_addr.in, err });
+        std.debug.print("Failed to bind socket to {f}: {}\n", .{ listen_addr.in, err });
         return err;
     };
 

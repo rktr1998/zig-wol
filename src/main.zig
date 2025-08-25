@@ -67,11 +67,11 @@ fn subCommandWake(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_a
     _ = main_args;
 
     const params = comptime clap.parseParamsComptime(
-        \\<str>             MAC address of the device to wake up, or an existing alias name.
-        \\--help            Display this help and exit.
-        \\--address <str>   IPv4 address, default is broadcast 255.255.255.255, setting this may be required in some scenarios.
-        \\--port <u16>      UDP port, default 9. Generally irrelevant since wake-on-lan works with OSI layer 2 (Data Link).
-        \\--all             Wake up all devices in the alias list.
+        \\<str>               MAC of the device to wake up, or an existing alias name.
+        \\--help              Display this help and exit.
+        \\--broadcast <str>   IPv4, defaults to 255.255.255.255, setting this may be required in some scenarios.
+        \\--port <u16>        UDP port, default 9. Generally irrelevant since wake-on-lan works with OSI layer 2 (Data Link).
+        \\--all               Wake up all devices in the alias list.
     );
 
     var diag = clap.Diagnostic{};
@@ -84,7 +84,7 @@ fn subCommandWake(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_a
     };
     defer res.deinit();
 
-    const help_message = "Provide a MAC address or an alias name. Usage: zig-wol wake <MAC or ALIAS> [options]\n";
+    const help_message = "Provide a MAC or an alias name. Usage: zig-wol wake <MAC or ALIAS> [options]\n";
 
     if (res.args.help != 0)
         return std.debug.print("{s}", .{help_message});
@@ -97,7 +97,7 @@ fn subCommandWake(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_a
         defer alias_list.deinit(page_allocator);
 
         for (alias_list.items) |item| {
-            try wol.broadcast_magic_packet_ipv4(item.mac, item.port, item.address, null);
+            try wol.broadcast_magic_packet_ipv4(item.mac, item.port, item.broadcast, null);
             std.Thread.sleep(100 * std.time.ns_per_ms); // sleep 100ms
         }
         return;
@@ -106,7 +106,7 @@ fn subCommandWake(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_a
     const mac = res.positionals[0] orelse return std.debug.print("{s}", .{help_message});
 
     if (wol.is_mac_valid(mac)) {
-        return try wol.broadcast_magic_packet_ipv4(mac, res.args.port, res.args.address, null);
+        return try wol.broadcast_magic_packet_ipv4(mac, res.args.port, res.args.broadcast, null);
     } else {
         const page_allocator = std.heap.page_allocator;
 
@@ -115,7 +115,7 @@ fn subCommandWake(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_a
 
         for (alias_list.items) |item| {
             if (item.name.len > 0 and std.mem.eql(u8, item.name, mac)) {
-                return try wol.broadcast_magic_packet_ipv4(item.mac, item.port, item.address, null);
+                return try wol.broadcast_magic_packet_ipv4(item.mac, item.port, item.broadcast, null);
             }
         }
 
@@ -160,7 +160,7 @@ fn subCommandStatus(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main
 
     //TODO: implement this with async as soon as it comes out and print results ordered instead of randomly...
     for (alias_list.items, 0..) |item, i| {
-        threads[i] = try std.Thread.spawn(.{}, ping.ping_with_os_command, .{item.address});
+        threads[i] = try std.Thread.spawn(.{}, ping.ping_with_os_command, .{item.broadcast});
     }
 
     for (threads) |*t| t.join();
@@ -172,7 +172,7 @@ fn subCommandAlias(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_
     const params = comptime clap.parseParamsComptime(
         \\<str>                 Name for the new alias.
         \\<str>                 MAC for the new alias.
-        \\--address <str>       IPv4 address, default is 255.255.255.255, setting this may be required in some scenarios.
+        \\--broadcast <str>     IPv4, defaults to 255.255.255.255, setting this may be required in some scenarios.
         \\--port <u16>          UDP port, default 9. Generally irrelevant since wake-on-lan works with OSI layer 2 (Data Link).
         \\--description <str>   Description for the new alias.
         \\-h, --help
@@ -189,13 +189,13 @@ fn subCommandAlias(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_
     defer res.deinit();
 
     const name = res.positionals[0] orelse return std.debug.print("Provide name and MAC for the new alias. Usage: zig-wol alias <NAME> <MAC>\n", .{});
-    const mac = res.positionals[1] orelse return std.debug.print("Provide a MAC address. Usage: zig-wol alias <NAME> <MAC>\n", .{});
-    const address = res.args.address orelse "255.255.255.255";
+    const mac = res.positionals[1] orelse return std.debug.print("Provide a MAC. Usage: zig-wol alias <NAME> <MAC>\n", .{});
+    const broadcast = res.args.broadcast orelse "255.255.255.255";
     const port = res.args.port orelse 9;
     const description = res.args.description orelse "";
 
     _ = wol.parse_mac(mac) catch |err| {
-        return std.debug.print("Invalid MAC address: {}\n", .{err});
+        return std.debug.print("Invalid MAC: {}\n", .{err});
     };
 
     // get config from file, add alias and save config to file
@@ -213,7 +213,7 @@ fn subCommandAlias(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_
     alias_list.append(page_allocator, alias.Alias{
         .name = name,
         .mac = mac,
-        .address = address,
+        .broadcast = broadcast,
         .port = port,
         .description = description,
     }) catch |err| {
@@ -302,10 +302,10 @@ fn subCommandList(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_a
     defer alias_list.deinit(page_allocator);
 
     for (alias_list.items) |item| {
-        std.debug.print("Name: {s}\nMAC: {s}\nAddress: {s}\nPort: {d}\nDescription: {s}\n\n", .{
+        std.debug.print("Name: {s}\nMAC: {s}\nBroadcast: {s}\nPort: {d}\nDescription: {s}\n\n", .{
             item.name,
             item.mac,
-            item.address,
+            item.broadcast,
             item.port,
             item.description,
         });
@@ -382,10 +382,10 @@ fn subCommandHelp() !void {
     const message =
         \\Usage: zig-wol <command> [options]
         \\Commands:
-        \\  wake      Wake up a device by its MAC address.
+        \\  wake      Wake up a device by its MAC.
         \\  status    Ping all aliases.
-        \\  alias     Manage aliases for MAC addresses.
-        \\  remove    Remove an alias by its name.
+        \\  alias     Create an alias for a MAC, optionally specify a broadcast, FQDN and more.
+        \\  remove    Remove an alias by name.
         \\  list      List all aliases.
         \\  relay     Start listening for wol packets and relay them.
         \\  version   Display the version of the program.
