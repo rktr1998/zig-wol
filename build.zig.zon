@@ -1,7 +1,7 @@
 .{
     .name = .zigwol,
     .fingerprint = 0xde77714c68dfba75,
-    .version = "0.6.1",
+    .version = "0.6.2",
     .dependencies = .{
         .clap = .{
             .url = "git+https://github.com/Hejsil/zig-clap#5289e0753cd274d65344bef1c114284c633536ea",

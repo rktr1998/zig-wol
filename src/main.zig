@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 const build_zig_zon = @import("build.zig.zon");
 const clap = @import("clap"); // third-party lib for cmd line args parsing
 const wol = @import("wol"); // local module
@@ -153,17 +154,46 @@ fn subCommandStatus(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main
     var threads = try page_allocator.alloc(std.Thread, alias_list.items.len);
     defer page_allocator.free(threads);
 
-    //TODO: implement --live status by pinging continuously
-    if (res.args.live != 0) {
-        std.debug.print("Pinging continuously not yet implemented\n", .{});
+    var is_alive_array = try page_allocator.alloc(bool, alias_list.items.len);
+    defer page_allocator.free(is_alive_array);
+
+    // To use UNICODE on windows we need to set the console code page to UTF-8 (65001)
+    // see https://learn.microsoft.com/en-us/windows/win32/intl/code-page-identifiers
+    if (builtin.target.os.tag == .windows) {
+        _ = std.os.windows.kernel32.SetConsoleOutputCP(65001);
     }
+    const unicode_circle_green = "\u{1F7E2}";
+    const unicode_circle_red = "\u{1F534}";
 
     //TODO: implement this with async as soon as it comes out and print results ordered instead of randomly...
-    for (alias_list.items, 0..) |item, i| {
-        threads[i] = try std.Thread.spawn(.{}, ping.ping_with_os_command, .{ item.name, item.fqdn });
-    }
+    var idx: u64 = 0;
+    while (true) {
+        for (alias_list.items, 0..) |item, i| {
+            threads[i] = try std.Thread.spawn(.{}, ping.ping_with_os_command, .{ item.fqdn, &is_alive_array[i] });
+        }
 
-    for (threads) |*t| t.join();
+        for (threads) |*t| t.join();
+
+        // reset the cursor to the top left before reprinting all lines
+        if (res.args.live != 0 and idx != 0) {
+            std.debug.print("\u{1B}[{d}A\r", .{alias_list.items.len});
+        }
+
+        for (alias_list.items, 0..) |item, i| {
+            if (is_alive_array[i]) {
+                std.debug.print("{s}  {s}\n", .{ unicode_circle_green, item.name });
+            } else {
+                std.debug.print("{s}  {s}\n", .{ unicode_circle_red, item.name });
+            }
+        }
+        // move the cursor up N lines and to the left to print again the new list next cycle
+        if (res.args.live == 0) {
+            break;
+        }
+
+        std.Thread.sleep(5 * std.time.ns_per_s); // do not spam too many pings
+        idx += 1;
+    }
 }
 
 fn subCommandAlias(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_args: MainArgs) !void {
