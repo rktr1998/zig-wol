@@ -1,6 +1,6 @@
 const std = @import("std");
 const builtin = @import("builtin");
-const build_zig_zon = @import("build.zig.zon");
+const build_zig_zon = @import("build_zig_zon");
 const clap = @import("clap"); // third-party lib for cmd line args parsing
 const wol = @import("wol"); // local module
 const alias = @import("alias.zig"); // local src file
