@@ -26,7 +26,7 @@ pub fn build(b: *std.Build) void {
     exe_module.addImport("clap", b.dependency("clap", .{}).module("clap"));
 
     // Create and import build.zig.zon module, this allows to use .version in main.zig
-    exe_module.addImport("build.zig.zon", b.createModule(.{
+    exe_module.addImport("build_zig_zon", b.createModule(.{
         .root_source_file = b.path("build.zig.zon"),
         .target = target,
         .optimize = optimize,
