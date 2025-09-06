@@ -27,9 +27,13 @@ const main_params = clap.parseParamsComptime(
 const MainArgs = clap.ResultEx(clap.Help, &main_params, main_parsers);
 
 pub fn main() !void {
-    var gpa_state = std.heap.GeneralPurposeAllocator(.{}){};
-    const gpa = gpa_state.allocator();
-    defer _ = gpa_state.deinit();
+    // var da = std.heap.DebugAllocator(.{
+    //     .thread_safe = true,
+    //     .retain_metadata = true,
+    // }){};
+    // defer _ = da.deinit();
+    // const gpa = da.allocator();
+    const gpa = std.heap.page_allocator;
 
     var iter = try std.process.ArgIterator.initWithAllocator(gpa);
     defer iter.deinit();
@@ -64,7 +68,7 @@ pub fn main() !void {
     }
 }
 
-fn subCommandWake(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_args: MainArgs) !void {
+fn subCommandWake(allocator: std.mem.Allocator, iter: *std.process.ArgIterator, main_args: MainArgs) !void {
     _ = main_args;
 
     const params = comptime clap.parseParamsComptime(
@@ -78,7 +82,7 @@ fn subCommandWake(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_a
     var diag = clap.Diagnostic{};
     var res = clap.parseEx(clap.Help, &params, clap.parsers.default, iter, .{
         .diagnostic = &diag,
-        .allocator = gpa,
+        .allocator = allocator,
     }) catch |err| {
         try diag.reportToFile(.stderr(), err);
         return err;
@@ -92,10 +96,8 @@ fn subCommandWake(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_a
 
     // if --all is provided, wake up all devices in the alias list
     if (res.args.all != 0) {
-        const page_allocator = std.heap.page_allocator;
-
-        var alias_list = alias.readAliasFile(page_allocator);
-        defer alias_list.deinit(page_allocator);
+        var alias_list = alias.readAliasFile(allocator);
+        defer alias_list.deinit(allocator);
 
         for (alias_list.items) |item| {
             try wol.broadcast_magic_packet_ipv4(item.mac, item.port, item.broadcast, null);
@@ -109,14 +111,14 @@ fn subCommandWake(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_a
     if (wol.is_mac_valid(mac)) {
         return try wol.broadcast_magic_packet_ipv4(mac, res.args.port, res.args.broadcast, null);
     } else {
-        const page_allocator = std.heap.page_allocator;
-
-        var alias_list = alias.readAliasFile(page_allocator);
-        alias_list.deinit(page_allocator);
+        var alias_list = alias.readAliasFile(allocator);
+        defer alias_list.deinit(allocator);
 
         for (alias_list.items) |item| {
-            if (item.name.len > 0 and std.mem.eql(u8, item.name, mac)) {
-                return try wol.broadcast_magic_packet_ipv4(item.mac, item.port, item.broadcast, null);
+            if (item.name.len > 0 and item.name.len == mac.len) {
+                if (std.mem.eql(u8, item.name, mac)) {
+                    return try wol.broadcast_magic_packet_ipv4(item.mac, item.port, item.broadcast, null);
+                }
             }
         }
 
@@ -124,7 +126,7 @@ fn subCommandWake(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_a
     }
 }
 
-fn subCommandStatus(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_args: MainArgs) !void {
+fn subCommandStatus(allocator: std.mem.Allocator, iter: *std.process.ArgIterator, main_args: MainArgs) !void {
     _ = main_args;
 
     const params = comptime clap.parseParamsComptime(
@@ -135,7 +137,7 @@ fn subCommandStatus(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main
     var diag = clap.Diagnostic{};
     var res = clap.parseEx(clap.Help, &params, clap.parsers.default, iter, .{
         .diagnostic = &diag,
-        .allocator = gpa,
+        .allocator = allocator,
     }) catch |err| {
         try diag.reportToFile(.stderr(), err);
         return err;
@@ -147,15 +149,14 @@ fn subCommandStatus(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main
     if (res.args.help != 0)
         return std.debug.print("{s}", .{help_message});
 
-    const page_allocator = std.heap.page_allocator;
-    var alias_list = alias.readAliasFile(page_allocator);
-    defer alias_list.deinit(page_allocator);
+    var alias_list = alias.readAliasFile(allocator);
+    defer alias_list.deinit(allocator);
 
-    var threads = try page_allocator.alloc(std.Thread, alias_list.items.len);
-    defer page_allocator.free(threads);
+    var threads = try allocator.alloc(std.Thread, alias_list.items.len);
+    defer allocator.free(threads);
 
-    var is_alive_array = try page_allocator.alloc(bool, alias_list.items.len);
-    defer page_allocator.free(is_alive_array);
+    var is_alive_array = try allocator.alloc(bool, alias_list.items.len);
+    defer allocator.free(is_alive_array);
 
     // Try using unicode characters for status indication
     var is_unicode_supported: bool = true;
@@ -187,7 +188,7 @@ fn subCommandStatus(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main
     var idx: u64 = 0;
     while (true) {
         for (alias_list.items, 0..) |item, i| {
-            threads[i] = try std.Thread.spawn(.{}, ping.ping_with_os_command, .{ item.fqdn, &is_alive_array[i] });
+            threads[i] = try std.Thread.spawn(.{}, ping.ping_with_os_command, .{ allocator, item.fqdn, &is_alive_array[i] });
         }
 
         for (threads) |*t| t.join();
@@ -214,7 +215,7 @@ fn subCommandStatus(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main
     }
 }
 
-fn subCommandAlias(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_args: MainArgs) !void {
+fn subCommandAlias(allocator: std.mem.Allocator, iter: *std.process.ArgIterator, main_args: MainArgs) !void {
     _ = main_args;
 
     const params = comptime clap.parseParamsComptime(
@@ -230,7 +231,7 @@ fn subCommandAlias(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_
     var diag = clap.Diagnostic{};
     var res = clap.parseEx(clap.Help, &params, clap.parsers.default, iter, .{
         .diagnostic = &diag,
-        .allocator = gpa,
+        .allocator = allocator,
     }) catch |err| {
         try diag.reportToFile(.stderr(), err);
         return err;
@@ -249,9 +250,8 @@ fn subCommandAlias(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_
     };
 
     // get config from file, add alias and save config to file
-    const page_allocator = std.heap.page_allocator;
-    var alias_list = alias.readAliasFile(page_allocator);
-    defer alias_list.deinit(page_allocator);
+    var alias_list = alias.readAliasFile(allocator);
+    defer alias_list.deinit(allocator);
 
     // check if alias already exists
     for (alias_list.items) |item| {
@@ -260,7 +260,7 @@ fn subCommandAlias(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_
         }
     }
 
-    alias_list.append(page_allocator, alias.Alias{
+    alias_list.append(allocator, alias.Alias{
         .name = name,
         .mac = mac,
         .broadcast = broadcast,
@@ -270,12 +270,12 @@ fn subCommandAlias(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_
     }) catch |err| {
         return std.debug.print("Failed to add alias: {}\n", .{err});
     };
-    alias.writeAliasFile(alias_list);
+    alias.writeAliasFile(allocator, alias_list);
 
     std.debug.print("Alias added.\n", .{});
 }
 
-fn subCommandRemove(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_args: MainArgs) !void {
+fn subCommandRemove(allocator: std.mem.Allocator, iter: *std.process.ArgIterator, main_args: MainArgs) !void {
     _ = main_args;
 
     const params = comptime clap.parseParamsComptime(
@@ -287,7 +287,7 @@ fn subCommandRemove(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main
     var diag = clap.Diagnostic{};
     var res = clap.parseEx(clap.Help, &params, clap.parsers.default, iter, .{
         .diagnostic = &diag,
-        .allocator = gpa,
+        .allocator = allocator,
     }) catch |err| {
         try diag.reportToFile(.stderr(), err);
         return err;
@@ -298,13 +298,12 @@ fn subCommandRemove(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main
 
     // if --all is provided, remove all aliases
     if (res.args.all != 0) {
-        const page_allocator = std.heap.page_allocator;
-        var alias_list = alias.readAliasFile(page_allocator);
+        var alias_list = alias.readAliasFile(allocator);
         const alias_count = alias_list.items.len;
-        defer alias_list.deinit(page_allocator);
+        defer alias_list.deinit(allocator);
 
-        alias_list.clearAndFree(page_allocator);
-        alias.writeAliasFile(alias_list);
+        alias_list.clearAndFree(allocator);
+        alias.writeAliasFile(allocator, alias_list);
         std.debug.print("Removed {d} aliases.\n", .{alias_count});
         return;
     }
@@ -316,14 +315,14 @@ fn subCommandRemove(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main
     }
 
     // finally, if a name is provided, remove the alias
-    const page_allocator = std.heap.page_allocator;
-    var alias_list = alias.readAliasFile(page_allocator);
-    defer alias_list.deinit(page_allocator);
+
+    var alias_list = alias.readAliasFile(allocator);
+    defer alias_list.deinit(allocator);
 
     for (alias_list.items, 0..) |item, idx| {
         if (std.mem.eql(u8, item.name, name)) {
             _ = alias_list.orderedRemove(idx);
-            alias.writeAliasFile(alias_list);
+            alias.writeAliasFile(allocator, alias_list);
             std.debug.print("Alias removed.\n", .{});
             return;
         }
@@ -331,7 +330,7 @@ fn subCommandRemove(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main
     std.debug.print("Alias not found.\n", .{});
 }
 
-fn subCommandList(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_args: MainArgs) !void {
+fn subCommandList(allocator: std.mem.Allocator, iter: *std.process.ArgIterator, main_args: MainArgs) !void {
     _ = main_args;
 
     const params = comptime clap.parseParamsComptime(
@@ -341,16 +340,15 @@ fn subCommandList(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_a
     var diag = clap.Diagnostic{};
     var res = clap.parseEx(clap.Help, &params, clap.parsers.default, iter, .{
         .diagnostic = &diag,
-        .allocator = gpa,
+        .allocator = allocator,
     }) catch |err| {
         std.debug.print("{}", .{err});
         return err;
     };
     defer res.deinit();
 
-    const page_allocator = std.heap.page_allocator;
-    var alias_list = alias.readAliasFile(page_allocator);
-    defer alias_list.deinit(page_allocator);
+    var alias_list = alias.readAliasFile(allocator);
+    defer alias_list.deinit(allocator);
 
     for (alias_list.items) |item| {
         std.debug.print("Name: {s}\nMAC: {s}\nBroadcast: {s}\nPort: {d}\nFQDN: {s}\nDescription: {s}\n\n", .{
@@ -364,7 +362,7 @@ fn subCommandList(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_a
     }
 }
 
-fn subCommandRelay(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_args: MainArgs) !void {
+fn subCommandRelay(allocator: std.mem.Allocator, iter: *std.process.ArgIterator, main_args: MainArgs) !void {
     _ = main_args;
 
     const params = comptime clap.parseParamsComptime(
@@ -378,7 +376,7 @@ fn subCommandRelay(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main_
     var diag = clap.Diagnostic{};
     var res = clap.parseEx(clap.Help, &params, clap.parsers.default, iter, .{
         .diagnostic = &diag,
-        .allocator = gpa,
+        .allocator = allocator,
     }) catch |err| {
         try diag.reportToFile(.stderr(), err);
         return err;
