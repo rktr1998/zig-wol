@@ -157,15 +157,33 @@ fn subCommandStatus(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main
     var is_alive_array = try page_allocator.alloc(bool, alias_list.items.len);
     defer page_allocator.free(is_alive_array);
 
-    // To use UNICODE on windows we need to set the console code page to UTF-8 (65001)
+    // Try using unicode characters for status indication
+    var is_unicode_supported: bool = true;
+    // Green circle: 🟢 (U+1F7E2)
+    // Red circle: 🔴 (U+1F534)
+    const status_indicator_online_unicode = "\u{1F7E2}";
+    const status_indicator_offline_unicode = "\u{1F534}";
+    // if not supported fall back to text with ANSI colors
+    const ansi_green = "\x1b[32m";
+    const ansi_red = "\x1b[31m";
+    const ansi_reset = "\x1b[0m";
+    const status_indicator_online_ansi = ansi_green ++ "ONLINE " ++ ansi_reset;
+    const status_indicator_offline_ansi = ansi_red ++ "OFFLINE" ++ ansi_reset;
+
+    // To use UNICODE on windows we need to set the console code page to UTF-8 (id 65001)
     // see https://learn.microsoft.com/en-us/windows/win32/intl/code-page-identifiers
     if (builtin.target.os.tag == .windows) {
-        _ = std.os.windows.kernel32.SetConsoleOutputCP(65001);
+        const windows_utf8_code_page = 65001;
+        const is_set_cp_ok = std.os.windows.kernel32.SetConsoleOutputCP(windows_utf8_code_page);
+        const new_cp = std.os.windows.kernel32.GetConsoleOutputCP();
+        is_unicode_supported = is_set_cp_ok != 0 and new_cp == windows_utf8_code_page;
     }
-    const unicode_circle_green = "\u{1F7E2}";
-    const unicode_circle_red = "\u{1F534}";
 
-    //TODO: implement this with async as soon as it comes out and print results ordered instead of randomly...
+    // Finally select the status indicators based on unicode support
+    const status_indicator_online = if (is_unicode_supported) status_indicator_online_unicode else status_indicator_online_ansi;
+    const status_indicator_offline = if (is_unicode_supported) status_indicator_offline_unicode else status_indicator_offline_ansi;
+
+    //TODO: implement this with async when it is ready...
     var idx: u64 = 0;
     while (true) {
         for (alias_list.items, 0..) |item, i| {
@@ -181,9 +199,9 @@ fn subCommandStatus(gpa: std.mem.Allocator, iter: *std.process.ArgIterator, main
 
         for (alias_list.items, 0..) |item, i| {
             if (is_alive_array[i]) {
-                std.debug.print("{s}  {s}\n", .{ unicode_circle_green, item.name });
+                std.debug.print("{s}  {s}\n", .{ status_indicator_online, item.name });
             } else {
-                std.debug.print("{s}  {s}\n", .{ unicode_circle_red, item.name });
+                std.debug.print("{s}  {s}\n", .{ status_indicator_offline, item.name });
             }
         }
         // move the cursor up N lines and to the left to print again the new list next cycle
