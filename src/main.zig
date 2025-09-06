@@ -116,8 +116,6 @@ fn subCommandWake(allocator: std.mem.Allocator, iter: *std.process.ArgIterator, 
 
         for (alias_list.items) |item| {
             if (item.name.len > 0 and item.name.len == mac.len) {
-                std.debug.print("User argument mac = {s}\n", .{mac});
-                std.debug.print("Comparing with    = {s}\n", .{item.name});
                 if (std.mem.eql(u8, item.name, mac)) {
                     return try wol.broadcast_magic_packet_ipv4(item.mac, item.port, item.broadcast, null);
                 }
