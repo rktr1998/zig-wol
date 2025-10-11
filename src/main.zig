@@ -149,6 +149,8 @@ fn subCommandStatus(allocator: std.mem.Allocator, iter: *std.process.ArgIterator
     if (res.args.help != 0)
         return std.debug.print("{s}", .{help_message});
 
+    const is_status_live = res.args.live != 0;
+
     var alias_list = alias.readAliasFile(allocator);
     defer alias_list.deinit(allocator);
 
@@ -156,7 +158,35 @@ fn subCommandStatus(allocator: std.mem.Allocator, iter: *std.process.ArgIterator
     defer allocator.free(threads);
 
     var is_alive_array = try allocator.alloc(bool, alias_list.items.len);
+    for (is_alive_array) |*item| {
+        item.* = false;
+    }
     defer allocator.free(is_alive_array);
+
+    var mutex = std.Thread.Mutex{};
+
+    for (alias_list.items, 0..) |item, i| {
+        threads[i] = try std.Thread.spawn(.{}, ping.ping_with_os_command_multithread, .{
+            allocator,
+            item.fqdn,
+            is_status_live,
+            &mutex,
+            &is_alive_array[i],
+        });
+    }
+
+    if (is_status_live) {
+        // in live mode detach threads so they can run independently forever
+        for (threads) |thread| {
+            _ = thread.detach();
+        }
+    } else {
+        // in non-live mode ("single shot ping") wait for all threads to finish.
+        // a join here is necessary otherwise the first (and only) ping to all machines may not be completed when we print the status and exit
+        for (threads) |thread| {
+            _ = thread.join();
+        }
+    }
 
     // Try using unicode characters for status indication
     var is_unicode_supported: bool = true;
@@ -184,20 +214,15 @@ fn subCommandStatus(allocator: std.mem.Allocator, iter: *std.process.ArgIterator
     const status_indicator_online = if (is_unicode_supported) status_indicator_online_unicode else status_indicator_online_ansi;
     const status_indicator_offline = if (is_unicode_supported) status_indicator_offline_unicode else status_indicator_offline_ansi;
 
-    //TODO: implement this with async when it is ready...
     var idx: u64 = 0;
     while (true) {
-        for (alias_list.items, 0..) |item, i| {
-            threads[i] = try std.Thread.spawn(.{}, ping.ping_with_os_command, .{ allocator, item.fqdn, &is_alive_array[i] });
-        }
-
-        for (threads) |*t| t.join();
-
         // reset the cursor to the top left before reprinting all lines
         if (res.args.live != 0 and idx != 0) {
             std.debug.print("\u{1B}[{d}A\r", .{alias_list.items.len});
         }
 
+        // while accessing the results array to print the status, lock the mutex
+        mutex.lock();
         for (alias_list.items, 0..) |item, i| {
             if (is_alive_array[i]) {
                 std.debug.print("{s}  {s}\n", .{ status_indicator_online, item.name });
@@ -205,12 +230,14 @@ fn subCommandStatus(allocator: std.mem.Allocator, iter: *std.process.ArgIterator
                 std.debug.print("{s}  {s}\n", .{ status_indicator_offline, item.name });
             }
         }
-        // move the cursor up N lines and to the left to print again the new list next cycle
-        if (res.args.live == 0) {
+        mutex.unlock();
+
+        if (is_status_live) {
+            // sleep 1 second before printing the status again to console
+            std.Thread.sleep(1 * std.time.ns_per_s);
+        } else {
             break;
         }
-
-        std.Thread.sleep(5 * std.time.ns_per_s); // do not spam too many pings
         idx += 1;
     }
 }
