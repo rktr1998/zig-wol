@@ -175,7 +175,7 @@ pub fn aliasFileExists(allocator: std.mem.Allocator) bool {
     const file_path = getAliasFilePath(allocator);
     defer allocator.free(file_path);
 
-    _ = std.fs.accessAbsolute(file_path, .{ .mode = .read_only }) catch {
+    _ = std.fs.accessAbsolute(file_path, .{ .read = true }) catch {
         return false;
     };
 
