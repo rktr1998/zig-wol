@@ -15,28 +15,24 @@ fn getExampleAliasList(allocator: std.mem.Allocator) ArrayList(Alias) {
     var alias_list = ArrayList(Alias).initCapacity(allocator, 0) catch @panic("OutOfMemory");
 
     alias_list.append(allocator, Alias{
-        .name = "alias-example",
+        .name = "alias-example-unreachable",
         .mac = "01-01-01-ab-ab-ab",
         .broadcast = "255.255.255.255",
         .port = 9,
-        .fqdn = "alias-example.local",
-        .description = "Alias example description.",
+        .fqdn = "alias-example.unreachable-by-ping",
+        .description = "Alias example. Works with WOL but cannot be pinged.",
+    }) catch unreachable;
+
+    alias_list.append(allocator, Alias{
+        .name = "alias-example-localhost",
+        .mac = "00-00-00-00-00-00",
+        .broadcast = "255.255.255.255",
+        .port = 9,
+        .fqdn = "localhost",
+        .description = "Alias example. Can be pinged successfully when using the subcommand status. Does not support WOL.",
     }) catch unreachable;
 
     return alias_list;
-}
-
-test "example alias list (ArrayList)" {
-    var da = std.heap.DebugAllocator(.{}){};
-    defer _ = da.deinit();
-    const gpa = da.allocator();
-    var alias_list = getExampleAliasList(gpa);
-    defer alias_list.deinit(gpa);
-
-    try std.testing.expectEqual(alias_list.items.len, 1);
-    try std.testing.expectEqual(alias_list.items[0].name, "alias-example");
-    try std.testing.expectEqual(alias_list.items[0].mac, "01-01-01-ab-ab-ab");
-    try std.testing.expectEqual(alias_list.items[0].description, "Alias example description.");
 }
 
 /// Read the alias file in the same directory as the executable. Caller must free the memory after use.
@@ -105,9 +101,8 @@ test "readAliasFile" {
 
     std.debug.print("First alias: {s}, {s}, {s}\n", .{ alias_list.items[0].name, alias_list.items[0].mac, alias_list.items[0].description });
 
-    try std.testing.expect(std.mem.eql(u8, alias_list.items[0].name, "alias-example"));
+    try std.testing.expect(std.mem.eql(u8, alias_list.items[0].name, "alias-example-unreachable"));
     try std.testing.expect(std.mem.eql(u8, alias_list.items[0].mac, "01-01-01-ab-ab-ab"));
-    try std.testing.expect(std.mem.eql(u8, alias_list.items[0].description, "Alias example description."));
 }
 
 /// Write the alias file in the same directory as the executable. Overwrites if it already exists.

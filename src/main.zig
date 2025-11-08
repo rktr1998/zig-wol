@@ -144,7 +144,10 @@ fn subCommandStatus(allocator: std.mem.Allocator, iter: *std.process.ArgIterator
     };
     defer res.deinit();
 
-    const help_message = "Ping all aliases to check their status. Usage: zig-wol status [--live] [--help]\n";
+    const help_message =
+        \\Ping all aliases to check their status. Usage: zig-wol status [--live] [--help]
+        \\Make sure a FQDN/IP is set accordingly for each alias.
+    ;
 
     if (res.args.help != 0)
         return std.debug.print("{s}", .{help_message});
