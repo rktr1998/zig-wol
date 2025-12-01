@@ -217,11 +217,23 @@ fn subCommandStatus(allocator: std.mem.Allocator, iter: *std.process.ArgIterator
     const status_indicator_online = if (is_unicode_supported) status_indicator_online_unicode else status_indicator_online_ansi;
     const status_indicator_offline = if (is_unicode_supported) status_indicator_offline_unicode else status_indicator_offline_ansi;
 
-    var idx: u64 = 0;
+    // Enter alternate screen buffer in live mode to avoid viewport ceiling issues
+    // This also preserves the terminal history
+    if (is_status_live) {
+        std.debug.print("\x1b[?1049h", .{});
+    }
+    defer {
+        // Exit alternate screen buffer when done
+        if (is_status_live) {
+            std.debug.print("\x1b[?1049l", .{});
+        }
+    }
+
     while (true) {
-        // reset the cursor to the top left before reprinting all lines
-        if (res.args.live != 0 and idx != 0) {
-            std.debug.print("\u{1B}[{d}A\r", .{alias_list.items.len});
+        // Clear screen and move cursor to home position instead of using cursor up
+        // This avoids the viewport ceiling problem and handles long lines that wrap
+        if (is_status_live) {
+            std.debug.print("\x1b[2J\x1b[H", .{});
         }
 
         // while accessing the results array to print the status, lock the mutex
@@ -241,7 +253,6 @@ fn subCommandStatus(allocator: std.mem.Allocator, iter: *std.process.ArgIterator
         } else {
             break;
         }
-        idx += 1;
     }
 }
 
