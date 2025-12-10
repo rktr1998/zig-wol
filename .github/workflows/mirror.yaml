@@ -1,0 +1,23 @@
+name: "Mirror"
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["**"]
+    tags: ["**"]
+
+jobs:
+  mirror:
+    name: "Mirror"
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+        - uses: actions/checkout@v3
+          with:
+            fetch-depth: 0
+        - uses: yesolutions/mirror-action@v0.7.0
+          with:
+            REMOTE: 'https://codeberg.org/rktr1998/zig-wol'
+            GIT_USERNAME: rktr1998
+            GIT_PASSWORD: ${{ secrets.CODEBERG_TOKEN }}
