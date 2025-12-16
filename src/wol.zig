@@ -77,10 +77,10 @@ pub fn generate_magic_packet(mac_bytes: [6]u8) [102]u8 {
 }
 
 /// Broadcasts a magic packet to wake up a device with the specified MAC address.
-pub fn broadcast_magic_packet_ipv4(mac: []const u8, port: ?u16, broadcast: ?[]const u8, count: ?u8) !void {
+pub fn broadcast_magic_packet_ipv4(io: std.Io, mac: []const u8, port: ?u16, broadcast: ?[]const u8, count: ?u8) !void {
     // Defaults
     const actual_port = port orelse 9;
-    const actual_broadcast = try std.net.Address.parseIp(broadcast orelse "255.255.255.255", actual_port);
+    const actual_broadcast = try std.Io.net.IpAddress.parse(broadcast orelse "255.255.255.255", actual_port);
     const actual_count = count orelse 3; // how man times the magic packet is sent
 
     const mac_bytes = parse_mac(mac) catch |err| {

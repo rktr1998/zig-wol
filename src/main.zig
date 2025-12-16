@@ -27,6 +27,7 @@ const main_params = clap.parseParamsComptime(
 const MainArgs = clap.ResultEx(clap.Help, &main_params, main_parsers);
 
 pub fn main() !void {
+    // ----- ALLOCATOR -----
     // var da = std.heap.DebugAllocator(.{
     //     .thread_safe = true,
     //     .retain_metadata = true,
@@ -34,6 +35,11 @@ pub fn main() !void {
     // defer _ = da.deinit();
     // const gpa = da.allocator();
     const gpa = std.heap.page_allocator;
+
+    // ----- IO IMPLEMENTATION -----
+    var threaded: std.Io.Threaded = .init(gpa);
+    defer threaded.deinit();
+    const io = threaded.io();
 
     var iter = try std.process.ArgIterator.initWithAllocator(gpa);
     defer iter.deinit();
@@ -57,7 +63,7 @@ pub fn main() !void {
 
     const subcommand = res.positionals[0] orelse return subCommandHelp();
     switch (subcommand) {
-        .wake => try subCommandWake(gpa, &iter, res),
+        .wake => try subCommandWake(gpa, io, &iter, res),
         .status => try subCommandStatus(gpa, &iter, res),
         .alias => try subCommandAlias(gpa, &iter, res),
         .remove => try subCommandRemove(gpa, &iter, res),
@@ -68,7 +74,7 @@ pub fn main() !void {
     }
 }
 
-fn subCommandWake(allocator: std.mem.Allocator, iter: *std.process.ArgIterator, main_args: MainArgs) !void {
+fn subCommandWake(allocator: std.mem.Allocator, io: std.Io, iter: *std.process.ArgIterator, main_args: MainArgs) !void {
     _ = main_args;
 
     const params = comptime clap.parseParamsComptime(
@@ -96,11 +102,11 @@ fn subCommandWake(allocator: std.mem.Allocator, iter: *std.process.ArgIterator, 
 
     // if --all is provided, wake up all devices in the alias list
     if (res.args.all != 0) {
-        var alias_list = alias.readAliasFile(allocator);
+        var alias_list = alias.readAliasFile(allocator, io);
         defer alias_list.deinit(allocator);
 
         for (alias_list.items) |item| {
-            try wol.broadcast_magic_packet_ipv4(item.mac, item.port, item.broadcast, null);
+            try wol.broadcast_magic_packet_ipv4(io, item.mac, item.port, item.broadcast, null);
             std.Thread.sleep(100 * std.time.ns_per_ms); // sleep 100ms
         }
         return;
@@ -109,15 +115,15 @@ fn subCommandWake(allocator: std.mem.Allocator, iter: *std.process.ArgIterator, 
     const mac = res.positionals[0] orelse return std.debug.print("{s}", .{help_message});
 
     if (wol.is_mac_valid(mac)) {
-        return try wol.broadcast_magic_packet_ipv4(mac, res.args.port, res.args.broadcast, null);
+        return try wol.broadcast_magic_packet_ipv4(io, mac, res.args.port, res.args.broadcast, null);
     } else {
-        var alias_list = alias.readAliasFile(allocator);
+        var alias_list = alias.readAliasFile(allocator, io);
         defer alias_list.deinit(allocator);
 
         for (alias_list.items) |item| {
             if (item.name.len > 0 and item.name.len == mac.len) {
                 if (std.mem.eql(u8, item.name, mac)) {
-                    return try wol.broadcast_magic_packet_ipv4(item.mac, item.port, item.broadcast, null);
+                    return try wol.broadcast_magic_packet_ipv4(io, item.mac, item.port, item.broadcast, null);
                 }
             }
         }

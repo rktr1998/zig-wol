@@ -37,7 +37,7 @@ fn getExampleAliasList(allocator: std.mem.Allocator) ArrayList(Alias) {
 
 /// Read the alias file in the same directory as the executable. Caller must free the memory after use.
 /// Allocates internally.
-pub fn readAliasFile(allocator: std.mem.Allocator) ArrayList(Alias) {
+pub fn readAliasFile(allocator: std.mem.Allocator, io: std.Io) ArrayList(Alias) {
     const file_path = getAliasFilePath(allocator);
     defer allocator.free(file_path);
 
