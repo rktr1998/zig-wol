@@ -84,7 +84,7 @@ pub fn broadcast_magic_packet_ipv4(mac: []const u8, port: ?u16, broadcast: ?[]co
     const actual_count = count orelse 3; // how man times the magic packet is sent
 
     const mac_bytes = parse_mac(mac) catch |err| {
-        std.debug.print("Invalid MAC address: {}\n", .{err});
+        std.log.err("Invalid MAC address: {}\n", .{err});
         return err;
     };
     const magic_packet = generate_magic_packet(mac_bytes);
@@ -96,19 +96,19 @@ pub fn broadcast_magic_packet_ipv4(mac: []const u8, port: ?u16, broadcast: ?[]co
     // Enable socket broadcast (setting SO_BROADCAST to anything othen than empty string enables broadcast)
     const option_value: u32 = 1;
     posix.setsockopt(socket, posix.SOL.SOCKET, posix.SO.BROADCAST, std.mem.asBytes(&option_value)) catch |err| {
-        std.debug.print("Failed to set socket option to enable broadcast: {}\n", .{err});
+        std.log.err("Failed to set socket option to enable broadcast: {}\n", .{err});
         return err;
     };
 
     // Send the magic packet
     for (0..actual_count) |_| {
         _ = posix.sendto(socket, &magic_packet, 0, &actual_broadcast.any, actual_broadcast.getOsSockLen()) catch |err| {
-            // std.debug.print("Failed to send to {s}.\n", .{actual_broadcast.in});
+            std.log.err("Failed to send to the provided address {f}.\n", .{actual_broadcast.in});
             return err;
         };
     }
 
-    std.debug.print("Sent {d} magic packet to target MAC {s} via {f}/udp.\n", .{ actual_count, mac, actual_broadcast.in });
+    std.log.info("Sent {d} magic packet to target MAC {s} via {f}/udp.\n", .{ actual_count, mac, actual_broadcast.in });
 }
 
 /// Checks if a sequence is a valid magic packet: 6 bytes of 0xFF followed by the MAC address bytes repeated 16 times.
@@ -205,7 +205,7 @@ pub fn relay_begin(listen_addr: std.net.Address, relay_addr: std.net.Address) !v
     try posix.setsockopt(socket, posix.SOL.SOCKET, posix.SO.BROADCAST, std.mem.asBytes(&option_value));
 
     posix.bind(socket, &listen_addr.any, listen_addr.getOsSockLen()) catch |err| {
-        std.debug.print("Failed to bind socket to {f}: {}\n", .{ listen_addr.in, err });
+        std.log.err("Failed to bind socket to {f}: {}\n", .{ listen_addr.in, err });
         return err;
     };
 
@@ -214,28 +214,27 @@ pub fn relay_begin(listen_addr: std.net.Address, relay_addr: std.net.Address) !v
     while (true) {
         std.Thread.sleep(1_000_000_000);
 
-        std.debug.print("Listening for WOL packets on {f}, relaying to {f}...\n", .{ listen_addr.in, relay_addr.in });
+        std.log.info("Listening for WOL packets on {f}, relaying to {f}...\n", .{ listen_addr.in, relay_addr.in });
 
         const received_bytes_count = posix.recv(socket, &buf, 0) catch |err| {
-            std.debug.print("Failed to receive data: {}\n", .{err});
+            std.log.err("Failed to receive data: {}\n", .{err});
             continue; // in case of recv error (e.g. error.MessageTooBig when size > 102 bytes), ignore and continue listening
         };
 
         if (received_bytes_count != 102) {
-            std.debug.print("Received packet ignored: unexpected packet size of {d} bytes, expected 102 bytes.\n", .{received_bytes_count});
+            std.log.info("Received packet ignored: unexpected packet size of {d} bytes, expected 102 bytes.\n", .{received_bytes_count});
             continue; // ignore packets that are not 102 bytes
         }
 
         if (!is_magic_packet(buf)) {
-            std.debug.print("Received packet ignored: invalid WOL packet.\n", .{});
+            std.log.info("Received packet ignored: invalid WOL packet.\n", .{});
             continue;
         }
 
-        std.debug.print("Received WOL packet on {f}.\nPacket data: {x}.\n\n", .{ listen_addr.in, buf[0..received_bytes_count] });
-
+        std.log.info("Received WOL packet on {f}.\nPacket data: {x}.\n\n", .{ listen_addr.in, buf[0..received_bytes_count] });
         // Relay the received magic packet to the specified address and port
         _ = posix.sendto(socket, &buf, 0, &relay_addr.any, relay_addr.getOsSockLen()) catch |err| {
-            std.debug.print("Failed to relay to {f}.\n", .{relay_addr.in});
+            std.log.err("Failed to relay to {f}.\n", .{relay_addr.in});
             return err;
         };
     }

@@ -4,14 +4,7 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    // Create the executable module
-    const exe_module = b.createModule(.{
-        .root_source_file = b.path("src/main.zig"),
-        .target = target,
-        .optimize = optimize,
-        .link_libc = true,
-    });
-
+    // --------------------------- WOL MODULE ---------------------------
     // note: wol module is created so that other projects can use it with zig fetch and @import("wol").
     const wol_module = b.addModule("wol", .{
         .root_source_file = b.path("src/wol.zig"),
@@ -19,24 +12,30 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
+    // --------------------------- EXECUTABLE ---------------------------
+    // Create, add and install the exe
+    const exe = b.addExecutable(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/main.zig"),
+            .target = target,
+            .optimize = optimize,
+            .link_libc = true,
+        }),
+        .name = "zig-wol",
+    });
+
     // Add dependencies from local modules
-    exe_module.addImport("wol", wol_module);
+    exe.root_module.addImport("wol", wol_module);
 
-    // Add dependencies from third-party libs (see build.zig.zon)
-    exe_module.addImport("clap", b.dependency("clap", .{}).module("clap"));
+    // Add dependencies from fetched third-party libs (see build.zig.zon)
+    exe.root_module.addImport("clap", b.dependency("clap", .{}).module("clap"));
 
-    // Create and import build.zig.zon module, this allows to use .version in main.zig
-    exe_module.addImport("build_zig_zon", b.createModule(.{
+    // Create and import a module for build.zig.zon, allows using its .version field in the codebase
+    exe.root_module.addImport("build_zig_zon", b.createModule(.{
         .root_source_file = b.path("build.zig.zon"),
         .target = target,
         .optimize = optimize,
     }));
-
-    // Create, add and install the executable
-    const exe = b.addExecutable(.{
-        .root_module = exe_module,
-        .name = "zig-wol",
-    });
 
     b.installArtifact(exe);
 
