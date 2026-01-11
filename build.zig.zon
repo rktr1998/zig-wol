@@ -4,8 +4,8 @@
     .version = "0.7.0",
     .dependencies = .{
         .clap = .{
-            .url = "git+https://github.com/Hejsil/zig-clap#3ae92228409d82a2c906fafc228b7920d9ff046b",
-            .hash = "clap-0.11.0-oBajB03nAQAvaRnlqid3PwE7E_JqPypon6NQoMlm9ekb",
+            .url = "git+https://github.com/Hejsil/zig-clap.git#efa85b280f66f6f8416a6ed7257d0351d9d48023",
+            .hash = "clap-0.11.0-oBajBzLuAQCsmHpejX0CKtZ4eG9dh9JFYK5kf1CnU-zx",
         },
     },
     .minimum_zig_version = "0.16.0-dev.2135+7c0b42ba0",

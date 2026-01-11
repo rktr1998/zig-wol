@@ -54,13 +54,17 @@ pub fn readAliasFile(allocator: std.mem.Allocator, io: std.Io) ArrayList(Alias) 
         return example_alias_list;
     }
 
-    const file = std.fs.openFileAbsolute(file_path, .{ .mode = .read_only }) catch |err| {
+    const file = std.Io.Dir.openFileAbsolute(io, file_path, .{ .mode = .read_only }) catch |err| {
         std.log.err("Error opening alias file: {}\n", .{err});
         std.posix.exit(1);
     };
     defer file.close();
 
-    const file_source = file.readToEndAlloc(allocator, 1024 * 1024) catch |err| {
+    var file_reader_buffer: [1024]u8 = undefined;
+    const file_reader = file.reader(io, &file_reader_buffer);
+    const file_reader_interface = &file_reader.interface;
+
+    const file_source = file_reader_interface.readAlloc(allocator, file_reader_buffer.len) catch |err| {
         std.log.err("Error reading alias file: {}\n", .{err});
         std.posix.exit(1);
     };

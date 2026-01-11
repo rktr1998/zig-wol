@@ -37,7 +37,7 @@ pub fn main() !void {
     const gpa = std.heap.page_allocator;
 
     // ----- IO IMPLEMENTATION -----
-    var threaded: std.Io.Threaded = .init(gpa);
+    var threaded: std.Io.Threaded = .init_single_threaded;
     defer threaded.deinit();
     const io = threaded.io();
 
@@ -52,7 +52,7 @@ pub fn main() !void {
         .allocator = gpa,
         .terminating_positional = 0,
     }) catch |err| {
-        try diag.reportToFile(.stderr(), err);
+        try diag.reportToFile(io, .stderr(), err);
         return subCommandHelp();
     };
     defer res.deinit();
@@ -90,7 +90,7 @@ fn subCommandWake(allocator: std.mem.Allocator, io: std.Io, iter: *std.process.A
         .diagnostic = &diag,
         .allocator = allocator,
     }) catch |err| {
-        try diag.reportToFile(.stderr(), err);
+        try diag.reportToFile(io, .stderr(), err);
         return err;
     };
     defer res.deinit();
@@ -145,7 +145,7 @@ fn subCommandStatus(allocator: std.mem.Allocator, iter: *std.process.ArgIterator
         .diagnostic = &diag,
         .allocator = allocator,
     }) catch |err| {
-        try diag.reportToFile(.stderr(), err);
+        try diag.reportToFile(io, .stderr(), err);
         return err;
     };
     defer res.deinit();
@@ -269,7 +269,7 @@ fn subCommandAlias(allocator: std.mem.Allocator, iter: *std.process.ArgIterator,
         .diagnostic = &diag,
         .allocator = allocator,
     }) catch |err| {
-        try diag.reportToFile(.stderr(), err);
+        try diag.reportToFile(io, .stderr(), err);
         return err;
     };
     defer res.deinit();
@@ -325,7 +325,7 @@ fn subCommandRemove(allocator: std.mem.Allocator, iter: *std.process.ArgIterator
         .diagnostic = &diag,
         .allocator = allocator,
     }) catch |err| {
-        try diag.reportToFile(.stderr(), err);
+        try diag.reportToFile(io, .stderr(), err);
         return err;
     };
     defer res.deinit();
@@ -414,7 +414,7 @@ fn subCommandRelay(allocator: std.mem.Allocator, iter: *std.process.ArgIterator,
         .diagnostic = &diag,
         .allocator = allocator,
     }) catch |err| {
-        try diag.reportToFile(.stderr(), err);
+        try diag.reportToFile(io, .stderr(), err);
         return err;
     };
     defer res.deinit();
