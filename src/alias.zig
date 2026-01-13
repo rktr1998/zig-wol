@@ -23,7 +23,7 @@ fn getExampleAliasList(allocator: std.mem.Allocator) ArrayList(Alias) {
         .description = "Alias example. Works with WOL but cannot be pinged.",
     }) catch {
         std.log.err("Error appending to alias list\n", .{});
-        std.posix.exit(1);
+        std.process.exit(1);
     };
 
     alias_list.append(allocator, Alias{
@@ -35,7 +35,7 @@ fn getExampleAliasList(allocator: std.mem.Allocator) ArrayList(Alias) {
         .description = "Alias example. Can be pinged successfully when using the subcommand status. Does not support WOL.",
     }) catch {
         std.log.err("Error appending to alias list\n", .{});
-        std.posix.exit(1);
+        std.process.exit(1);
     };
 
     return alias_list;
@@ -56,7 +56,7 @@ pub fn readAliasFile(allocator: std.mem.Allocator, io: std.Io) ArrayList(Alias) 
 
     const file = std.Io.Dir.openFileAbsolute(io, file_path, .{ .mode = .read_only }) catch |err| {
         std.log.err("Error opening alias file: {}\n", .{err});
-        std.posix.exit(1);
+        std.process.exit(1);
     };
     defer file.close();
 
@@ -66,14 +66,14 @@ pub fn readAliasFile(allocator: std.mem.Allocator, io: std.Io) ArrayList(Alias) 
 
     const file_source = file_reader_interface.readAlloc(allocator, file_reader_buffer.len) catch |err| {
         std.log.err("Error reading alias file: {}\n", .{err});
-        std.posix.exit(1);
+        std.process.exit(1);
     };
     defer allocator.free(file_source);
 
     // Allocate a new null-terminated slice
     const file_source_nt = allocator.allocSentinel(u8, file_source.len, 0) catch |err| {
         std.log.err("Error allocating memory for alias file: {}\n", .{err});
-        std.posix.exit(1);
+        std.process.exit(1);
     };
     defer allocator.free(file_source_nt);
 
@@ -82,19 +82,19 @@ pub fn readAliasFile(allocator: std.mem.Allocator, io: std.Io) ArrayList(Alias) 
     // Zon parsing
     const alias_list_slice = std.zon.parse.fromSlice([]Alias, allocator, file_source_nt, null, .{}) catch |err| {
         std.log.err("Error parsing alias file: {}\n", .{err});
-        std.posix.exit(1);
+        std.process.exit(1);
     };
 
     // Create the alias list and fill with default items
     var alias_list = ArrayList(Alias).initCapacity(allocator, alias_list_slice.len) catch |err| {
         std.log.err("Error allocating memory for alias list: {}\n", .{err});
-        std.posix.exit(1);
+        std.process.exit(1);
     };
 
     for (alias_list_slice) |item| {
         alias_list.append(allocator, item) catch |err| {
             std.log.err("Error appending to alias list: {}\n", .{err});
-            std.posix.exit(1);
+            std.process.exit(1);
         };
     }
 
@@ -122,7 +122,7 @@ pub fn writeAliasFile(allocator: std.mem.Allocator, alias_list: ArrayList(Alias)
 
     const file = std.fs.createFileAbsolute(file_path, .{}) catch |err| {
         std.log.err("Error creating alias file: {}\n", .{err});
-        std.posix.exit(1);
+        std.process.exit(1);
     };
     defer file.close();
 
@@ -133,7 +133,7 @@ pub fn writeAliasFile(allocator: std.mem.Allocator, alias_list: ArrayList(Alias)
 
     std.zon.stringify.serialize(alias_list.items, .{}, writer_interface) catch |err| {
         std.log.err("Error serializing alias file: {}\n", .{err});
-        std.posix.exit(1);
+        std.process.exit(1);
     };
 }
 
@@ -154,7 +154,7 @@ pub fn getAliasFilePath(allocator: std.mem.Allocator) []u8 {
     var exe_dir_path_buffer: [std.fs.max_path_bytes]u8 = undefined;
     const exe_dir_path = std.fs.selfExeDirPath(&exe_dir_path_buffer) catch |err| {
         std.log.err("Error getting self executable directory path: {}\n", .{err});
-        std.posix.exit(1);
+        std.process.exit(1);
     };
 
     const file_path = std.fs.path.join(allocator, &[_][]const u8{
@@ -162,7 +162,7 @@ pub fn getAliasFilePath(allocator: std.mem.Allocator) []u8 {
         "alias.zon",
     }) catch |err| {
         std.log.err("Error joining paths: {}\n", .{err});
-        std.posix.exit(1);
+        std.process.exit(1);
     };
 
     return file_path;

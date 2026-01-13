@@ -26,7 +26,7 @@ const main_params = clap.parseParamsComptime(
 );
 const MainArgs = clap.ResultEx(clap.Help, &main_params, main_parsers);
 
-pub fn main() !void {
+pub fn main(init: std.process.Init.Minimal) !void {
     // ----- ALLOCATOR -----
     // var da = std.heap.DebugAllocator(.{
     //     .thread_safe = true,
@@ -37,13 +37,11 @@ pub fn main() !void {
     const gpa = std.heap.page_allocator;
 
     // ----- IO IMPLEMENTATION -----
-    var threaded: std.Io.Threaded = .init_single_threaded;
+    var threaded: std.Io.Threaded = .init(gpa, std.Io.Threaded.InitOptions{ .environ = init.environ });
     defer threaded.deinit();
     const io = threaded.io();
 
-    var iter = try std.process.ArgIterator.initWithAllocator(gpa);
-    defer iter.deinit();
-
+    var iter = init.args.iterate();
     _ = iter.next();
 
     var diag = clap.Diagnostic{};
@@ -74,7 +72,7 @@ pub fn main() !void {
     }
 }
 
-fn subCommandWake(allocator: std.mem.Allocator, io: std.Io, iter: *std.process.ArgIterator, main_args: MainArgs) !void {
+fn subCommandWake(allocator: std.mem.Allocator, io: std.Io, iter: *std.process.Args.Iterator, main_args: MainArgs) !void {
     _ = main_args;
 
     const params = comptime clap.parseParamsComptime(
@@ -132,7 +130,7 @@ fn subCommandWake(allocator: std.mem.Allocator, io: std.Io, iter: *std.process.A
     }
 }
 
-fn subCommandStatus(allocator: std.mem.Allocator, iter: *std.process.ArgIterator, main_args: MainArgs) !void {
+fn subCommandStatus(allocator: std.mem.Allocator, io: std.Io, iter: *std.process.ArgIterator, main_args: MainArgs) !void {
     _ = main_args;
 
     const params = comptime clap.parseParamsComptime(
@@ -251,7 +249,7 @@ fn subCommandStatus(allocator: std.mem.Allocator, iter: *std.process.ArgIterator
     }
 }
 
-fn subCommandAlias(allocator: std.mem.Allocator, iter: *std.process.ArgIterator, main_args: MainArgs) !void {
+fn subCommandAlias(allocator: std.mem.Allocator, io: std.Io, iter: *std.process.ArgIterator, main_args: MainArgs) !void {
     _ = main_args;
 
     const params = comptime clap.parseParamsComptime(
@@ -311,7 +309,7 @@ fn subCommandAlias(allocator: std.mem.Allocator, iter: *std.process.ArgIterator,
     std.debug.print("Alias added.\n", .{});
 }
 
-fn subCommandRemove(allocator: std.mem.Allocator, iter: *std.process.ArgIterator, main_args: MainArgs) !void {
+fn subCommandRemove(allocator: std.mem.Allocator, io: std.Io, iter: *std.process.ArgIterator, main_args: MainArgs) !void {
     _ = main_args;
 
     const params = comptime clap.parseParamsComptime(
@@ -366,7 +364,7 @@ fn subCommandRemove(allocator: std.mem.Allocator, iter: *std.process.ArgIterator
     std.debug.print("Alias not found.\n", .{});
 }
 
-fn subCommandList(allocator: std.mem.Allocator, iter: *std.process.ArgIterator, main_args: MainArgs) !void {
+fn subCommandList(allocator: std.mem.Allocator, io: std.Io, iter: *std.process.ArgIterator, main_args: MainArgs) !void {
     _ = main_args;
 
     const params = comptime clap.parseParamsComptime(
@@ -378,7 +376,7 @@ fn subCommandList(allocator: std.mem.Allocator, iter: *std.process.ArgIterator, 
         .diagnostic = &diag,
         .allocator = allocator,
     }) catch |err| {
-        std.debug.print("{}", .{err});
+        try diag.reportToFile(io, .stderr(), err);
         return err;
     };
     defer res.deinit();
@@ -398,7 +396,7 @@ fn subCommandList(allocator: std.mem.Allocator, iter: *std.process.ArgIterator, 
     }
 }
 
-fn subCommandRelay(allocator: std.mem.Allocator, iter: *std.process.ArgIterator, main_args: MainArgs) !void {
+fn subCommandRelay(allocator: std.mem.Allocator, io: std.Io, iter: *std.process.ArgIterator, main_args: MainArgs) !void {
     _ = main_args;
 
     const params = comptime clap.parseParamsComptime(
