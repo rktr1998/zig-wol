@@ -44,13 +44,13 @@ fn getExampleAliasList(allocator: std.mem.Allocator) ArrayList(Alias) {
 /// Read the alias file in the same directory as the executable. Caller must free the memory after use.
 /// Allocates internally.
 pub fn readAliasFile(allocator: std.mem.Allocator, io: std.Io) ArrayList(Alias) {
-    const file_path = getAliasFilePath(allocator);
+    const file_path = getAliasFilePath(allocator, io);
     defer allocator.free(file_path);
 
-    if (!aliasFileExists(allocator)) {
+    if (!aliasFileExists(allocator, io)) {
         std.log.info("Alias list file does not exist, creating the default file...\n", .{});
         const example_alias_list = getExampleAliasList(allocator);
-        writeAliasFile(allocator, example_alias_list);
+        writeAliasFile(allocator, io, example_alias_list);
         return example_alias_list;
     }
 
@@ -58,13 +58,13 @@ pub fn readAliasFile(allocator: std.mem.Allocator, io: std.Io) ArrayList(Alias) 
         std.log.err("Error opening alias file: {}\n", .{err});
         std.process.exit(1);
     };
-    defer file.close();
+    defer file.close(io);
 
-    var file_reader_buffer: [1024]u8 = undefined;
-    const file_reader = file.reader(io, &file_reader_buffer);
-    const file_reader_interface = &file_reader.interface;
+    var reader_buffer: [1024]u8 = undefined;
+    var file_reader = file.reader(io, &reader_buffer);
+    const reader_interface = &file_reader.interface;
 
-    const file_source = file_reader_interface.readAlloc(allocator, file_reader_buffer.len) catch |err| {
+    const file_source = reader_interface.readAlloc(allocator, reader_buffer.len) catch |err| {
         std.log.err("Error reading alias file: {}\n", .{err});
         std.process.exit(1);
     };
@@ -116,15 +116,15 @@ test "readAliasFile" {
 }
 
 /// Write the alias file in the same directory as the executable. Overwrites if it already exists.
-pub fn writeAliasFile(allocator: std.mem.Allocator, alias_list: ArrayList(Alias)) void {
-    const file_path = getAliasFilePath(allocator);
+pub fn writeAliasFile(allocator: std.mem.Allocator, io: std.Io, alias_list: ArrayList(Alias)) void {
+    const file_path = getAliasFilePath(allocator, io);
     defer allocator.free(file_path);
 
     const file = std.fs.createFileAbsolute(file_path, .{}) catch |err| {
         std.log.err("Error creating alias file: {}\n", .{err});
         std.process.exit(1);
     };
-    defer file.close();
+    defer file.close(io);
 
     var buf: [1024]u8 = undefined;
     var writer = std.fs.File.writer(file, &buf);
@@ -150,9 +150,8 @@ test "writeAliasFile" {
 
 /// Computes the absolute path to the alias file in the same directory as the executable.
 /// Caller must free the memory after use.
-pub fn getAliasFilePath(allocator: std.mem.Allocator) []u8 {
-    var exe_dir_path_buffer: [std.fs.max_path_bytes]u8 = undefined;
-    const exe_dir_path = std.fs.selfExeDirPath(&exe_dir_path_buffer) catch |err| {
+pub fn getAliasFilePath(allocator: std.mem.Allocator, io: std.Io) []u8 {
+    const exe_dir_path = std.process.executableDirPathAlloc(io, allocator) catch |err| {
         std.log.err("Error getting self executable directory path: {}\n", .{err});
         std.process.exit(1);
     };
@@ -181,8 +180,8 @@ test "getAliasFilePath" {
 
 /// Check if the zon alias file exists in the same directory as the executable.
 /// Internally allocates and frees to compute the path.
-pub fn aliasFileExists(allocator: std.mem.Allocator) bool {
-    const file_path = getAliasFilePath(allocator);
+pub fn aliasFileExists(allocator: std.mem.Allocator, io: std.Io) bool {
+    const file_path = getAliasFilePath(allocator, io);
     defer allocator.free(file_path);
 
     _ = std.fs.accessAbsolute(file_path, .{ .read = true }) catch {

@@ -8,7 +8,7 @@
             .hash = "clap-0.11.0-oBajBzLuAQCsmHpejX0CKtZ4eG9dh9JFYK5kf1CnU-zx",
         },
     },
-    .minimum_zig_version = "0.16.0-dev.2193+fc517bd01",
+    .minimum_zig_version = "0.16.0-dev.2213+9d1a39c50",
     .paths = .{
         "build.zig",
         "build.zig.zon",
