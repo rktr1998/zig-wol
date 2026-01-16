@@ -120,16 +120,19 @@ pub fn writeAliasFile(allocator: std.mem.Allocator, io: std.Io, alias_list: Arra
     const file_path = getAliasFilePath(allocator, io);
     defer allocator.free(file_path);
 
-    const file = std.fs.createFileAbsolute(file_path, .{}) catch |err| {
+    const file = std.Io.Dir.createFileAbsolute(io, file_path, .{}) catch |err| {
         std.log.err("Error creating alias file: {}\n", .{err});
         std.process.exit(1);
     };
     defer file.close(io);
 
     var buf: [1024]u8 = undefined;
-    var writer = std.fs.File.writer(file, &buf);
+    var writer = std.Io.File.Writer.init(file, io, &buf);
     const writer_interface = &writer.interface;
-    defer writer_interface.flush() catch @panic("stdout flush failed");
+    defer writer_interface.flush() catch |err| {
+        std.log.err("Error flushing alias file: {}\n", .{err});
+        std.process.exit(1);
+    };
 
     std.zon.stringify.serialize(alias_list.items, .{}, writer_interface) catch |err| {
         std.log.err("Error serializing alias file: {}\n", .{err});
@@ -184,7 +187,7 @@ pub fn aliasFileExists(allocator: std.mem.Allocator, io: std.Io) bool {
     const file_path = getAliasFilePath(allocator, io);
     defer allocator.free(file_path);
 
-    _ = std.fs.accessAbsolute(file_path, .{ .read = true }) catch {
+    _ = std.Io.Dir.accessAbsolute(io, file_path, .{ .read = true }) catch {
         return false;
     };
 

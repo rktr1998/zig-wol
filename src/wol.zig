@@ -199,7 +199,7 @@ test "is_magic_packet (invalid - broken repetition)" {
 }
 
 /// Never returns. Listens for magic packets and relays them to the specified address and port.
-pub fn relay_begin(listen_addr: std.net.Address, relay_addr: std.net.Address) !void {
+pub fn relay_begin(io: std.Io, listen_addr: std.net.Address, relay_addr: std.net.Address) !void {
     const socket = try posix.socket(posix.AF.INET, posix.SOCK.DGRAM, posix.IPPROTO.UDP);
     defer posix.close(socket);
 
@@ -214,7 +214,7 @@ pub fn relay_begin(listen_addr: std.net.Address, relay_addr: std.net.Address) !v
     var buf: [102]u8 = undefined;
 
     while (true) {
-        std.Thread.sleep(1_000_000_000);
+        std.Io.sleep(io, .fromSeconds(1), .real);
 
         std.log.info("Listening for WOL packets on {f}, relaying to {f}...\n", .{ listen_addr.in, relay_addr.in });
 

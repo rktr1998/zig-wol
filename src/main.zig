@@ -158,7 +158,7 @@ fn subCommandStatus(allocator: std.mem.Allocator, io: std.Io, iter: *std.process
 
     const is_status_live = res.args.live != 0;
 
-    var alias_list = alias.readAliasFile(allocator);
+    var alias_list = alias.readAliasFile(allocator, io);
     defer alias_list.deinit(allocator);
 
     var threads = try allocator.alloc(std.Thread, alias_list.items.len);
@@ -284,7 +284,7 @@ fn subCommandAlias(allocator: std.mem.Allocator, io: std.Io, iter: *std.process.
     };
 
     // get config from file, add alias and save config to file
-    var alias_list = alias.readAliasFile(allocator);
+    var alias_list = alias.readAliasFile(allocator, io);
     defer alias_list.deinit(allocator);
 
     // check if alias already exists
@@ -332,12 +332,12 @@ fn subCommandRemove(allocator: std.mem.Allocator, io: std.Io, iter: *std.process
 
     // if --all is provided, remove all aliases
     if (res.args.all != 0) {
-        var alias_list = alias.readAliasFile(allocator);
+        var alias_list = alias.readAliasFile(allocator, io);
         const alias_count = alias_list.items.len;
         defer alias_list.deinit(allocator);
 
         alias_list.clearAndFree(allocator);
-        alias.writeAliasFile(allocator, alias_list);
+        alias.writeAliasFile(allocator, io, alias_list);
         std.debug.print("Removed {d} aliases.\n", .{alias_count});
         return;
     }
@@ -349,14 +349,13 @@ fn subCommandRemove(allocator: std.mem.Allocator, io: std.Io, iter: *std.process
     }
 
     // finally, if a name is provided, remove the alias
-
-    var alias_list = alias.readAliasFile(allocator);
+    var alias_list = alias.readAliasFile(allocator, io);
     defer alias_list.deinit(allocator);
 
     for (alias_list.items, 0..) |item, idx| {
         if (std.mem.eql(u8, item.name, name)) {
             _ = alias_list.orderedRemove(idx);
-            alias.writeAliasFile(allocator, alias_list);
+            alias.writeAliasFile(allocator, alias_list, io);
             std.debug.print("Alias removed.\n", .{});
             return;
         }
@@ -381,7 +380,7 @@ fn subCommandList(allocator: std.mem.Allocator, io: std.Io, iter: *std.process.A
     };
     defer res.deinit();
 
-    var alias_list = alias.readAliasFile(allocator);
+    var alias_list = alias.readAliasFile(allocator, io);
     defer alias_list.deinit(allocator);
 
     for (alias_list.items) |item| {
@@ -452,7 +451,7 @@ fn subCommandRelay(allocator: std.mem.Allocator, io: std.Io, iter: *std.process.
         return std.debug.print("{s}", .{help_message});
     };
 
-    wol.relay_begin(listen_addr, relay_addr) catch |err| {
+    wol.relay_begin(io, listen_addr, relay_addr) catch |err| {
         return std.debug.print("Failed to start relay: {}\n", .{err});
     };
 }
